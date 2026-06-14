@@ -1,0 +1,13 @@
+{
+  "name": "Mandi ERP",
+  "short_name": "Mandi ERP",
+  "description": "Sabzi Mandi Accounting & Inventory Management",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1f8a4c",
+  "theme_color": "#1f8a4c",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
