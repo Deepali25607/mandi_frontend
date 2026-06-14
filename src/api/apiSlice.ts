@@ -58,6 +58,7 @@ export const apiSlice = createApi({
     'PlatformStats',
     'PlatformSettings',
     'Appearance',
+    'Branding',
   ],
   endpoints: () => ({}),
 });

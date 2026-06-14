@@ -34,6 +34,7 @@ import ReportRunnerPage from '@/features/reports/ReportRunnerPage';
 import PlatformDashboardPage from '@/features/platform/PlatformDashboardPage';
 import OrganizationsPage from '@/features/platform/OrganizationsPage';
 import PlansPage from '@/features/platform/PlansPage';
+import BrandingPage from '@/features/platform/BrandingPage';
 import PlatformSettingsPage from '@/features/platform/PlatformSettingsPage';
 import { RoleGuard, RoleHome } from '@/components/common/RoleGuard';
 import { NAV_ITEMS } from '@/components/layout/navConfig';
@@ -65,6 +66,7 @@ const IMPLEMENTED = new Set([
   '/platform',
   '/platform/organizations',
   '/platform/plans',
+  '/platform/branding',
   '/platform/settings',
 ]);
 
@@ -101,6 +103,7 @@ export default function App() {
         <Route path="/platform" element={<RoleGuard scope="platform"><PlatformDashboardPage /></RoleGuard>} />
         <Route path="/platform/organizations" element={<RoleGuard scope="platform"><OrganizationsPage /></RoleGuard>} />
         <Route path="/platform/plans" element={<RoleGuard scope="platform"><PlansPage /></RoleGuard>} />
+        <Route path="/platform/branding" element={<RoleGuard scope="platform"><BrandingPage /></RoleGuard>} />
         <Route path="/platform/settings" element={<RoleGuard scope="platform"><PlatformSettingsPage /></RoleGuard>} />
 
         <Route path="/dashboard" element={<RoleGuard scope="org"><DashboardPage /></RoleGuard>} />

@@ -52,7 +52,7 @@ export default function LoginPage() {
   };
 
   return (
-    <AuthLayout title="Mandi ERP" subtitle="Sabzi Mandi Accounting & Inventory">
+    <AuthLayout>
       <Card sx={{ width: '100%', maxWidth: 420 }}>
         <CardContent sx={{ p: { xs: 2.5, sm: 3.5 } }}>
           <form onSubmit={submit}>

@@ -8,6 +8,7 @@ import type {
   SubscriptionPlan,
   UpdateOrgSubscription,
 } from '@/types/platform';
+import type { PlatformBranding } from '@/types/appearance';
 
 export const platformApi = apiSlice.injectEndpoints({
   endpoints: (build) => ({
@@ -58,9 +59,23 @@ export const platformApi = apiSlice.injectEndpoints({
       invalidatesTags: ['PlatformSettings'],
     }),
 
-    // --- Public plans (registration screen) ---
+    // --- Login-screen branding (Super Admin) ---
+    getBranding: build.query<PlatformBranding, void>({
+      query: () => '/platform/branding',
+      providesTags: ['Branding'],
+    }),
+    updateBranding: build.mutation<PlatformBranding, PlatformBranding>({
+      query: (body) => ({ url: '/platform/branding', method: 'PATCH', body }),
+      invalidatesTags: ['Branding'],
+    }),
+
+    // --- Public plans + branding (registration / login screens) ---
     getPublicPlans: build.query<SubscriptionPlan[], void>({
       query: () => '/plans/public',
+    }),
+    getPublicBranding: build.query<PlatformBranding, void>({
+      query: () => '/branding/public',
+      providesTags: ['Branding'],
     }),
   }),
 });
@@ -76,5 +91,8 @@ export const {
   useUpdatePlanMutation,
   useGetPlatformSettingsQuery,
   useUpdatePlatformSettingMutation,
+  useGetBrandingQuery,
+  useUpdateBrandingMutation,
   useGetPublicPlansQuery,
+  useGetPublicBrandingQuery,
 } = platformApi;

@@ -169,6 +169,13 @@ Reorganized **Reports** into a module-wise hub (BRD reporting). Landing page (`/
 - **Design choices**: org-scoped (not per-user) so the look is consistent for the tenant; localStorage cache avoids a flash of default theme on reload; gradients/colours are dependency-free; image wallpapers are inlined as base64 in the org's own jsonb (dev-level — no object storage), keeping data tenant-isolated per the standing "no external services" constraint.
 - **Verified**: both builds clean; backend restarted (routes mapped, jsonb synced); scripted E2E — default GET, admin PATCH persists, non-admin GET 200 / PATCH 403, invalid hex 400.
 
+## Login screen / Platform branding (Super Admin)
+
+- **Goal**: the public sign-in / register / recovery screens (shown before any org context) are themed by the **Platform Super Admin**, not org admins.
+- **Backend** (`platform` module): branding stored as a JSON blob in `PlatformSetting` key `branding` (`PlatformSettingsService.getBranding/setBranding`, `DEFAULT_BRANDING`; excluded from the plain settings list). Endpoints — **public** `GET /branding/public` (`@Public()` on `PlansController`, no auth so the login screen can read it), admin `GET/PATCH /platform/branding` (`@Roles(SUPER_ADMIN)` via `PlatformController`), validated by `UpdateBrandingDto` (appName/tagline, `@IsHexColor` primary, nested background gradient/color/image data-URL).
+- **Frontend**: `types/appearance.ts` adds `PlatformBranding`/`DEFAULT_BRANDING`/`LOGIN_BG_PRESETS`; `platformApi` adds `getBranding`/`updateBranding`/`getPublicBranding` (+`Branding` tag). `AuthLayout` now fetches the public branding and applies the **background** (gradient/color/image), wraps the auth card in a `buildTheme({primaryColor})` so buttons/links use the brand colour, and shows `appName`/`tagline` (LoginPage no longer hardcodes them; Register/Forgot keep action-specific titles). New Super-Admin page `features/platform/BrandingPage.tsx` (identity fields, brand colour, background presets/colour/image upload ≤3 MB, **live login preview**, Save/Reset) + nav item **Login & Branding** (`/platform/branding`).
+- **Verified**: both builds clean; backend restarted; E2E — public GET (no token) ✓, super-admin PATCH persists & shows on public route ✓, org_admin PATCH 403 ✓, default restored.
+
 ## NOT implemented / partial (still pending after session 4)
 
 - **Module 13 — Accounting depth**: ledgers/cash-book/trial-balance are **derived** summaries. **No full double-entry GL, no P&L statement, no Balance Sheet.** Trial balance is a summary and does not strictly balance.

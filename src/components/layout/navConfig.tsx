@@ -26,6 +26,7 @@ import HandshakeRoundedIcon from '@mui/icons-material/HandshakeRounded';
 import MoneyOffRoundedIcon from '@mui/icons-material/MoneyOffRounded';
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import PaletteRoundedIcon from '@mui/icons-material/PaletteRounded';
+import WallpaperRoundedIcon from '@mui/icons-material/WallpaperRounded';
 
 export interface NavItem {
   label: string;
@@ -57,6 +58,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Platform Overview', path: '/platform', icon: InsightsRoundedIcon, roles: [], section: 'Platform', platform: true, primary: true },
   { label: 'Organizations', path: '/platform/organizations', icon: BusinessRoundedIcon, roles: [], section: 'Platform', platform: true, primary: true },
   { label: 'Plans & Pricing', path: '/platform/plans', icon: WorkspacePremiumRoundedIcon, roles: [], section: 'Platform', platform: true, primary: true },
+  { label: 'Login & Branding', path: '/platform/branding', icon: WallpaperRoundedIcon, roles: [], section: 'Platform', platform: true },
   { label: 'Platform Settings', path: '/platform/settings', icon: SettingsRoundedIcon, roles: [], section: 'Platform', platform: true, primary: true },
 
   // Operations

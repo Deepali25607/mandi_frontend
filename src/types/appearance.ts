@@ -66,6 +66,36 @@ export interface GradientPreset {
   value: string;
 }
 
+/**
+ * Public login / register / recovery screen branding — managed by the Platform
+ * Super Admin and applied before any organization context exists.
+ */
+export interface PlatformBranding {
+  appName: string;
+  tagline: string;
+  primaryColor: string;
+  background: { type: 'gradient' | 'color' | 'image'; value: string };
+}
+
+export const DEFAULT_BRANDING: PlatformBranding = {
+  appName: 'Mandi ERP',
+  tagline: 'Sabzi Mandi Accounting & Inventory',
+  primaryColor: '#1f8a4c',
+  background: { type: 'gradient', value: 'linear-gradient(160deg, #1f8a4c 0%, #13652f 60%, #0e4a23 100%)' },
+};
+
+/** Dark, login-friendly background gradients (light text stays readable). */
+export const LOGIN_BG_PRESETS: GradientPreset[] = [
+  { id: 'mandi', name: 'Mandi Green', value: 'linear-gradient(160deg, #1f8a4c 0%, #13652f 60%, #0e4a23 100%)' },
+  { id: 'forest', name: 'Forest', value: 'linear-gradient(160deg, #0f3d2e 0%, #14532d 100%)' },
+  { id: 'midnight', name: 'Midnight', value: 'linear-gradient(160deg, #1f2937 0%, #0b1120 100%)' },
+  { id: 'ocean', name: 'Ocean', value: 'linear-gradient(160deg, #0277bd 0%, #01425a 100%)' },
+  { id: 'plum', name: 'Plum', value: 'linear-gradient(160deg, #6d28d9 0%, #3b0764 100%)' },
+  { id: 'teal', name: 'Teal', value: 'linear-gradient(160deg, #0f766e 0%, #134e4a 100%)' },
+  { id: 'charcoal', name: 'Charcoal', value: 'linear-gradient(160deg, #334155 0%, #0f172a 100%)' },
+  { id: 'sunset', name: 'Sunset', value: 'linear-gradient(160deg, #c2410c 0%, #7c2d12 100%)' },
+];
+
 export const GRADIENT_PRESETS: GradientPreset[] = [
   { id: 'meadow', name: 'Meadow', value: 'linear-gradient(135deg, #d3f4e0 0%, #f4f6f5 60%)' },
   { id: 'sunrise', name: 'Sunrise', value: 'linear-gradient(135deg, #ffe9c7 0%, #ffd6d6 100%)' },
