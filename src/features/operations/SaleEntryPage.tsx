@@ -141,8 +141,11 @@ export default function SaleEntryPage() {
           quantity: Number(l.quantity) || 0,
           weight: Number(l.weight) || 0,
           rate: Number(l.rate),
-          commissionPct: l.commissionPct === '' ? undefined : Number(l.commissionPct),
-          marketFeePct: l.marketFeePct === '' ? undefined : Number(l.marketFeePct),
+          // Send exactly what the form shows: a blank field means 0 (the item
+          // default only pre-fills the input; clearing it = no charge), so the
+          // saved sale and the settlement match the on-screen figures.
+          commissionPct: l.commissionPct === '' ? 0 : Number(l.commissionPct),
+          marketFeePct: l.marketFeePct === '' ? 0 : Number(l.marketFeePct),
         })),
       }).unwrap();
       setToast(`Sale ${sale.saleNumber} saved · billed ${formatCurrency(sale.grossAmount, false)}`);
