@@ -52,6 +52,7 @@ export default function ArrivalEntryPage() {
   const [date, setDate] = useState(today());
   const [supplierId, setSupplierId] = useState('');
   const [vehicleNumber, setVehicleNumber] = useState('');
+  const [transportCharges, setTransportCharges] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([emptyLine()]);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -81,6 +82,7 @@ export default function ArrivalEntryPage() {
         date,
         supplierId,
         vehicleNumber: vehicleNumber || undefined,
+        transportCharges: Number(transportCharges) || 0,
         lines: validLines.map((l) => ({
           itemId: l.itemId,
           quantity: Number(l.quantity) || 0,
@@ -91,6 +93,7 @@ export default function ArrivalEntryPage() {
       setToast(`Arrival ${arrival.arrivalNumber} saved · ${arrival.lines.length} lot(s) created`);
       setSupplierId('');
       setVehicleNumber('');
+      setTransportCharges('');
       setLines([emptyLine()]);
     } catch (e) {
       const msg = (e as { data?: { message?: string | string[] } })?.data?.message;
@@ -113,12 +116,23 @@ export default function ArrivalEntryPage() {
                 <TextField label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} InputLabelProps={{ shrink: true }} />
                 <TextField label="Vehicle number" value={vehicleNumber} onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())} placeholder="HR55-AB-1234" />
               </Stack>
-              <TextField select label="Supplier" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
-                {activeSuppliers.length === 0 && <MenuItem disabled value="">No suppliers — add one first</MenuItem>}
-                {activeSuppliers.map((s) => (
-                  <MenuItem key={s.id} value={s.id}>{s.name} · {s.village ?? s.code}</MenuItem>
-                ))}
-              </TextField>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                <TextField select label="Supplier" value={supplierId} onChange={(e) => setSupplierId(e.target.value)} sx={{ flex: 2 }}>
+                  {activeSuppliers.length === 0 && <MenuItem disabled value="">No suppliers — add one first</MenuItem>}
+                  {activeSuppliers.map((s) => (
+                    <MenuItem key={s.id} value={s.id}>{s.name} · {s.village ?? s.code}</MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  label="Transport ₹"
+                  type="number"
+                  value={transportCharges}
+                  onChange={(e) => setTransportCharges(e.target.value)}
+                  inputProps={{ inputMode: 'decimal', min: 0 }}
+                  placeholder="0"
+                  sx={{ flex: 1 }}
+                />
+              </Stack>
             </Stack>
           </CardContent>
         </Card>
@@ -255,9 +269,24 @@ export default function ArrivalEntryPage() {
                   ))}
                 </TableBody>
               </Table>
-              <Stack direction="row" justifyContent="space-between" sx={{ mt: 2 }}>
-                <Typography color="text.secondary">{detail.totalQuantity} bags · {detail.totalWeight} kg</Typography>
-                <Typography sx={{ fontWeight: 800 }}>Total {formatCurrency(detail.totalValue, false)}</Typography>
+              <Stack spacing={0.5} sx={{ mt: 2 }}>
+                <Stack direction="row" justifyContent="space-between">
+                  <Typography color="text.secondary">{detail.totalQuantity} bags · {detail.totalWeight} kg</Typography>
+                  <Typography sx={{ fontWeight: 700 }}>Goods {formatCurrency(detail.totalValue, false)}</Typography>
+                </Stack>
+                {detail.transportCharges > 0 && (
+                  <>
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography color="text.secondary">Transport (bhada)</Typography>
+                      <Typography sx={{ fontWeight: 700 }}>{formatCurrency(detail.transportCharges, false)}</Typography>
+                    </Stack>
+                    <Divider sx={{ my: 0.5 }} />
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography sx={{ fontWeight: 800 }}>Total cost</Typography>
+                      <Typography sx={{ fontWeight: 800 }}>{formatCurrency(detail.totalValue + detail.transportCharges, false)}</Typography>
+                    </Stack>
+                  </>
+                )}
               </Stack>
             </DialogContent>
           </>

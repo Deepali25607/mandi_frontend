@@ -83,6 +83,7 @@ export interface Arrival {
   date: string;
   supplierId: string;
   vehicleNumber?: string;
+  transportCharges: number;
   notes?: string;
   totalQuantity: number;
   totalWeight: number;
@@ -126,6 +127,7 @@ export interface CreateArrivalPayload {
   date: string;
   supplierId: string;
   vehicleNumber?: string;
+  transportCharges?: number;
   notes?: string;
   lines: Array<{ itemId: string; quantity: number; weight: number; rate: number }>;
 }
