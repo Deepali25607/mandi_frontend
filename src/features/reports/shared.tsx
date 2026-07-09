@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  alpha,
   Box,
   Button,
   Card,
@@ -153,6 +154,16 @@ export function ReportShell({
 
       {loading && <LinearProgress />}
 
+      {/* At-a-glance summary cards for the totalled columns. */}
+      {rows.length > 0 && hasTotals && (
+        <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(auto-fit, minmax(150px, 1fr))' } }}>
+          <SummaryCard label="Records" value={formatNumber(rows.length)} />
+          {columns.map((c, i) => (totals[i] === null ? null : (
+            <SummaryCard key={c.key} label={c.label} value={display(c, totals[i] as number)} accent={c.currency} />
+          )))}
+        </Box>
+      )}
+
       <Card>
         <CardContent sx={{ p: { xs: 1, sm: 2 } }}>
           <Typography variant="caption" color="text.secondary">{rows.length} record{rows.length === 1 ? '' : 's'}{meta ? ` · ${meta}` : ''}</Typography>
@@ -163,13 +174,21 @@ export function ReportShell({
               <Table size="small" stickyHeader>
                 <TableHead>
                   <TableRow>
-                    {columns.map((c) => <TableCell key={c.key} align={isRight(c) ? 'right' : 'left'} sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{c.label}</TableCell>)}
+                    {columns.map((c) => (
+                      <TableCell
+                        key={c.key}
+                        align={isRight(c) ? 'right' : 'left'}
+                        sx={{ fontWeight: 700, whiteSpace: 'nowrap', bgcolor: (t) => alpha(t.palette.primary.main, 0.06), color: 'text.secondary', textTransform: 'uppercase', fontSize: 11, letterSpacing: '0.04em' }}
+                      >
+                        {c.label}
+                      </TableCell>
+                    ))}
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {rows.map((r, i) => (
-                    <TableRow key={i} hover>
-                      {columns.map((c) => <TableCell key={c.key} align={isRight(c) ? 'right' : 'left'} sx={{ whiteSpace: 'nowrap' }}>{display(c, r[c.key])}</TableCell>)}
+                    <TableRow key={i} hover sx={{ '&:nth-of-type(even)': { bgcolor: 'action.hover' } }}>
+                      {columns.map((c) => <TableCell key={c.key} align={isRight(c) ? 'right' : 'left'} sx={{ whiteSpace: 'nowrap', fontWeight: c.currency ? 600 : 400 }}>{display(c, r[c.key])}</TableCell>)}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -177,7 +196,7 @@ export function ReportShell({
                   <TableFooter>
                     <TableRow>
                       {columns.map((c, i) => (
-                        <TableCell key={c.key} align={isRight(c) ? 'right' : 'left'} sx={{ fontWeight: 800, color: 'text.primary', fontSize: 13 }}>
+                        <TableCell key={c.key} align={isRight(c) ? 'right' : 'left'} sx={{ fontWeight: 800, color: 'text.primary', fontSize: 13, bgcolor: (t) => alpha(t.palette.primary.main, 0.08), borderTop: '2px solid', borderColor: 'divider' }}>
                           {i === 0 && totals[i] === null ? 'Total' : totals[i] !== null ? display(c, totals[i] as number) : ''}
                         </TableCell>
                       ))}
@@ -190,6 +209,19 @@ export function ReportShell({
         </CardContent>
       </Card>
     </Stack>
+  );
+}
+
+/** Compact KPI tile shown above a report's table for its summed columns. */
+function SummaryCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <Paper
+      variant="outlined"
+      sx={{ p: 1.5, borderRadius: 2, ...(accent ? { bgcolor: (t) => alpha(t.palette.primary.main, 0.08), borderColor: 'primary.light' } : {}) }}
+    >
+      <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 10 }}>{label}</Typography>
+      <Typography variant="h6" sx={{ fontWeight: 800, color: accent ? 'primary.main' : 'text.primary' }} noWrap>{value}</Typography>
+    </Paper>
   );
 }
 
