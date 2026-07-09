@@ -11,7 +11,8 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Provider store={store}>
       <ThemedApp>
-        <BrowserRouter>
+        {/* basename follows Vite's `base` so a sub-path deploy (e.g. /mandi) routes correctly. */}
+        <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '') || undefined}>
           <App />
         </BrowserRouter>
       </ThemedApp>

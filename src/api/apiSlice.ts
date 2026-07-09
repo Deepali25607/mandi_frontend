@@ -7,10 +7,7 @@ import {
 } from '@reduxjs/toolkit/query/react';
 import type { RootState } from '@/store/store';
 import { logout } from '@/store/authSlice';
-
-// In dev, `/api` is proxied to the backend by Vite. In production (Vercel etc.)
-// set VITE_API_URL to the deployed API origin, e.g. https://your-api.onrender.com/api
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined)?.trim() || '/api';
+import { API_BASE } from '@/utils/apiBase';
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: API_BASE,

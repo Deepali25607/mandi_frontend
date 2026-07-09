@@ -3,7 +3,10 @@ import react from '@vitejs/plugin-react'
 import path from 'node:path'
 
 // https://vite.dev/config/
+// Sub-path deploys (e.g. AWS EC2 + nginx at https://host/mandi) build with
+// VITE_BASE_PATH=/mandi/ so all asset/router/API URLs are prefixed. Default '/'.
 export default defineConfig({
+  base: process.env.VITE_BASE_PATH || '/',
   plugins: [react()],
   resolve: {
     alias: {
