@@ -27,6 +27,8 @@ export interface SubscriptionSummary {
   planName: string | null;
   status: SubscriptionStatus | null;
   renewalDate: string | null;
+  /** True when the trial/subscription has lapsed (app is read-only). */
+  locked?: boolean;
 }
 
 export interface AuthUser {

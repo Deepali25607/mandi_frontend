@@ -60,6 +60,8 @@ export const apiSlice = createApi({
     'PlatformSettings',
     'Appearance',
     'Branding',
+    'Subscription',
+    'SubscriptionPayment',
   ],
   endpoints: () => ({}),
 });

@@ -16,10 +16,12 @@ import {
 import Grid from '@mui/material/Grid2';
 import { alpha } from '@mui/material/styles';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import PersonAddAltRoundedIcon from '@mui/icons-material/PersonAddAltRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import { useGetCustomersQuery, useGetItemsQuery } from '@/api/mastersApi';
 import { useCreateSaleMutation, useGetStockLotsQuery } from '@/api/operationsApi';
 import { useGetCustomerOutstandingQuery } from '@/api/financeApi';
+import CustomerFormDialog from '@/components/masters/CustomerFormDialog';
 import { formatCurrency } from '@/utils/format';
 import type { PaymentMode, StockLot } from '@/types/domain';
 
@@ -78,6 +80,7 @@ export default function SaleEntryPage() {
   const [lines, setLines] = useState<LineDraft[]>([emptyLine()]);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [newCustomerOpen, setNewCustomerOpen] = useState(false);
 
   const activeItems = (items ?? []).filter((i) => i.isActive);
   const activeCustomers = (customers ?? []).filter((c) => c.isActive);
@@ -164,20 +167,30 @@ export default function SaleEntryPage() {
       <Card>
         <CardContent>
           <Stack spacing={2}>
-            <TextField select label="Customer" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-              {activeCustomers.length === 0 && <MenuItem disabled value="">No customers — add one first</MenuItem>}
-              {activeCustomers.map((c) => {
-                const due = pendingMap.get(c.id) ?? 0;
-                return (
-                  <MenuItem key={c.id} value={c.id}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1 }}>
-                      <Box sx={{ flexGrow: 1, minWidth: 0 }}>{c.name}{c.area ? ` · ${c.area}` : ''}</Box>
-                      {due > 0 && <Chip size="small" color="warning" label={`Due ${formatCurrency(due, false)}`} sx={{ height: 20 }} />}
-                    </Box>
-                  </MenuItem>
-                );
-              })}
-            </TextField>
+            <Stack direction="row" spacing={1} alignItems="flex-start">
+              <TextField select fullWidth label="Customer" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+                {activeCustomers.length === 0 && <MenuItem disabled value="">No customers — add one with “New”</MenuItem>}
+                {activeCustomers.map((c) => {
+                  const due = pendingMap.get(c.id) ?? 0;
+                  return (
+                    <MenuItem key={c.id} value={c.id}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 1 }}>
+                        <Box sx={{ flexGrow: 1, minWidth: 0 }}>{c.name}{c.area ? ` · ${c.area}` : ''}</Box>
+                        {due > 0 && <Chip size="small" color="warning" label={`Due ${formatCurrency(due, false)}`} sx={{ height: 20 }} />}
+                      </Box>
+                    </MenuItem>
+                  );
+                })}
+              </TextField>
+              <Button
+                variant="outlined"
+                startIcon={<PersonAddAltRoundedIcon />}
+                onClick={() => setNewCustomerOpen(true)}
+                sx={{ flexShrink: 0, whiteSpace: 'nowrap', height: 56 }}
+              >
+                New
+              </Button>
+            </Stack>
 
             {customerId && (
               <Box sx={(theme) => {
@@ -309,6 +322,15 @@ export default function SaleEntryPage() {
           </Button>
         </CardContent>
       </Card>
+
+      <CustomerFormDialog
+        open={newCustomerOpen}
+        onClose={() => setNewCustomerOpen(false)}
+        onSaved={(c) => {
+          setCustomerId(c.id);
+          setToast(`Customer ${c.name} added`);
+        }}
+      />
 
       <Snackbar
         open={Boolean(toast)}

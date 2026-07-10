@@ -19,3 +19,11 @@ createRoot(document.getElementById('root')!).render(
     </Provider>
   </StrictMode>,
 );
+
+// Register the PWA service worker in production builds only (avoids caching the
+// dev server / breaking HMR). Resolved against BASE_URL for sub-path deploys.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {});
+  });
+}

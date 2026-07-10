@@ -2,12 +2,18 @@
   "name": "Mandi ERP",
   "short_name": "Mandi ERP",
   "description": "Sabzi Mandi Accounting & Inventory Management",
-  "start_url": "/",
+  "id": "/",
+  "start_url": ".",
+  "scope": ".",
   "display": "standalone",
   "background_color": "#1f8a4c",
   "theme_color": "#1f8a4c",
   "orientation": "portrait",
+  "categories": ["business", "finance", "productivity"],
   "icons": [
-    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    { "src": "pwa-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "pwa-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "pwa-maskable-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ]
 }

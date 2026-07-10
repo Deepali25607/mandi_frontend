@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   alpha,
   Box,
@@ -108,6 +108,10 @@ export function ReportShell({
   emptyText?: string;
 }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Go back to wherever the user came from (preserves the selected module on the
+  // Reports page); fall back to the Reports landing on a direct/fresh load.
+  const goBack = () => (location.key === 'default' ? navigate('/reports') : navigate(-1));
 
   const totals = columns.map((c) =>
     c.total ? rows.reduce((s, r) => s + (Number(r[c.key]) || 0), 0) : null,
@@ -136,7 +140,7 @@ export function ReportShell({
   return (
     <Stack spacing={2}>
       <Stack direction="row" spacing={1} alignItems="center">
-        <IconButton onClick={() => navigate('/reports')} aria-label="back" size="small"><ArrowBackRoundedIcon /></IconButton>
+        <IconButton onClick={goBack} aria-label="back" size="small"><ArrowBackRoundedIcon /></IconButton>
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
           <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.1 }} noWrap>{title}</Typography>
           {description && <Typography variant="caption" color="text.secondary">{description}</Typography>}

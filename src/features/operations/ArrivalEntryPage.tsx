@@ -24,12 +24,14 @@ import {
   Typography,
 } from '@mui/material';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import PersonAddAltRoundedIcon from '@mui/icons-material/PersonAddAltRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { useGetItemsQuery, useGetSuppliersQuery } from '@/api/mastersApi';
 import { useCreateArrivalMutation, useGetArrivalsQuery } from '@/api/operationsApi';
+import SupplierFormDialog from '@/components/masters/SupplierFormDialog';
 import { formatCurrency } from '@/utils/format';
 import type { Arrival } from '@/types/domain';
 
@@ -57,6 +59,7 @@ export default function ArrivalEntryPage() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [detail, setDetail] = useState<Arrival | null>(null);
+  const [newSupplierOpen, setNewSupplierOpen] = useState(false);
 
   const activeItems = (items ?? []).filter((i) => i.isActive);
   const activeSuppliers = (suppliers ?? []).filter((s) => s.isActive);
@@ -117,12 +120,22 @@ export default function ArrivalEntryPage() {
                 <TextField label="Vehicle number" value={vehicleNumber} onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())} placeholder="HR55-AB-1234" />
               </Stack>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                <TextField select label="Supplier" value={supplierId} onChange={(e) => setSupplierId(e.target.value)} sx={{ flex: 2 }}>
-                  {activeSuppliers.length === 0 && <MenuItem disabled value="">No suppliers — add one first</MenuItem>}
-                  {activeSuppliers.map((s) => (
-                    <MenuItem key={s.id} value={s.id}>{s.name} · {s.village ?? s.code}</MenuItem>
-                  ))}
-                </TextField>
+                <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ flex: 2 }}>
+                  <TextField select fullWidth label="Supplier" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+                    {activeSuppliers.length === 0 && <MenuItem disabled value="">No suppliers — add one with “New”</MenuItem>}
+                    {activeSuppliers.map((s) => (
+                      <MenuItem key={s.id} value={s.id}>{s.name} · {s.village ?? s.code}</MenuItem>
+                    ))}
+                  </TextField>
+                  <Button
+                    variant="outlined"
+                    startIcon={<PersonAddAltRoundedIcon />}
+                    onClick={() => setNewSupplierOpen(true)}
+                    sx={{ flexShrink: 0, whiteSpace: 'nowrap', height: 56 }}
+                  >
+                    New
+                  </Button>
+                </Stack>
                 <TextField
                   label="Transport ₹"
                   type="number"
@@ -292,6 +305,15 @@ export default function ArrivalEntryPage() {
           </>
         )}
       </Dialog>
+
+      <SupplierFormDialog
+        open={newSupplierOpen}
+        onClose={() => setNewSupplierOpen(false)}
+        onSaved={(s) => {
+          setSupplierId(s.id);
+          setToast(`Supplier ${s.name} added`);
+        }}
+      />
 
       <Snackbar
         open={Boolean(toast)}

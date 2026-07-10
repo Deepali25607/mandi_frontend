@@ -58,6 +58,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Platform Overview', path: '/platform', icon: InsightsRoundedIcon, roles: [], section: 'Platform', platform: true, primary: true },
   { label: 'Organizations', path: '/platform/organizations', icon: BusinessRoundedIcon, roles: [], section: 'Platform', platform: true, primary: true },
   { label: 'Plans & Pricing', path: '/platform/plans', icon: WorkspacePremiumRoundedIcon, roles: [], section: 'Platform', platform: true, primary: true },
+  { label: 'Payments', path: '/platform/payments', icon: ReceiptLongRoundedIcon, roles: [], section: 'Platform', platform: true, primary: true },
   { label: 'Login & Branding', path: '/platform/branding', icon: WallpaperRoundedIcon, roles: [], section: 'Platform', platform: true },
   { label: 'Platform Settings', path: '/platform/settings', icon: SettingsRoundedIcon, roles: [], section: 'Platform', platform: true, primary: true },
 
@@ -92,6 +93,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Roles & Access', path: '/roles', icon: AdminPanelSettingsRoundedIcon, roles: ['org_admin'], section: 'Admin' },
   { label: 'Appearance', path: '/appearance', icon: PaletteRoundedIcon, roles: ['org_admin'], section: 'Admin' },
   { label: 'Data Backup', path: '/backup', icon: BackupRoundedIcon, roles: ['org_admin'], section: 'Admin' },
+  { label: 'Subscription', path: '/subscription', icon: WorkspacePremiumRoundedIcon, roles: ['org_admin'], section: 'Admin' },
 ];
 
 /**

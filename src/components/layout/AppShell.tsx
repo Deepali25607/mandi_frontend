@@ -7,6 +7,7 @@ import {
   BottomNavigation,
   BottomNavigationAction,
   Chip,
+  Collapse,
   Divider,
   Drawer,
   IconButton,
@@ -14,7 +15,6 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  ListSubheader,
   Menu,
   MenuItem,
   Paper,
@@ -25,6 +25,8 @@ import {
 import { useTheme } from '@mui/material/styles';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
+import ExpandLessRoundedIcon from '@mui/icons-material/ExpandLessRounded';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import ManageAccountsRoundedIcon from '@mui/icons-material/ManageAccountsRounded';
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
@@ -35,6 +37,7 @@ import { useGetAppearanceQuery } from '@/api/appearanceApi';
 import { wallpaperSx } from '@/theme/wallpaper';
 import { sidebarPalette } from '@/theme/sidebar';
 import { DEFAULT_APPEARANCE } from '@/types/appearance';
+import SubscriptionBanner from '@/components/common/SubscriptionBanner';
 import { navItemsForRole, type NavItem } from './navConfig';
 
 const SIDEBAR_WIDTH = 264;
@@ -50,6 +53,9 @@ export default function AppShell() {
 
   const [moreOpen, setMoreOpen] = useState(false);
   const [userMenuEl, setUserMenuEl] = useState<null | HTMLElement>(null);
+  // Collapsible sidebar sections. A section defaults to open when it holds the
+  // current route; an explicit user toggle overrides that default.
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
   // Load the tenant's saved Theme & Wallpaper once authenticated (org users only;
   // the platform Super Admin has no organization). The cached config from
@@ -92,45 +98,67 @@ export default function AppShell() {
 
   const navList = (onItemClick: (path: string) => void) => (
     <List sx={{ py: 1 }}>
-      {grouped.map(([section, sectionItems]) => (
-        <Box key={section}>
-          <ListSubheader
-            disableSticky
-            sx={{ bgcolor: 'transparent', fontWeight: 700, color: sb.subheaderColor, lineHeight: '32px' }}
-          >
-            {section}
-          </ListSubheader>
-          {sectionItems.map((item) => {
-            const Icon = item.icon;
-            const active = item.path === current?.path;
-            return (
-              <ListItemButton
-                key={item.path}
-                onClick={() => onItemClick(item.path)}
-                selected={active}
-                sx={{
-                  mx: 1,
-                  my: 0.25,
-                  borderRadius: 2,
-                  color: sb.color,
-                  '&:hover': { bgcolor: sb.hoverBg },
-                  '&.Mui-selected': {
-                    bgcolor: sb.selectedBg,
-                    color: sb.selectedColor,
-                    '& .MuiListItemIcon-root': { color: sb.selectedColor },
-                    '&:hover': { bgcolor: sb.selectedHoverBg },
-                  },
+      {grouped.map(([section, sectionItems]) => {
+        const open = openSections[section] ?? section === current?.section;
+        return (
+          <Box key={section}>
+            {/* Section header — click to expand/collapse this module group. */}
+            <ListItemButton
+              onClick={() => setOpenSections((prev) => ({ ...prev, [section]: !open }))}
+              sx={{
+                mx: 1,
+                my: 0.25,
+                borderRadius: 2,
+                color: sb.subheaderColor,
+                '&:hover': { bgcolor: sb.hoverBg },
+              }}
+            >
+              <ListItemText
+                primary={section}
+                primaryTypographyProps={{
+                  fontWeight: 700,
+                  variant: 'body2',
+                  sx: { textTransform: 'uppercase', letterSpacing: 0.5 },
                 }}
-              >
-                <ListItemIcon sx={{ minWidth: 40, color: active ? 'inherit' : sb.iconColor }}>
-                  <Icon />
-                </ListItemIcon>
-                <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600 }} />
-              </ListItemButton>
-            );
-          })}
-        </Box>
-      ))}
+              />
+              {open ? <ExpandLessRoundedIcon fontSize="small" /> : <ExpandMoreRoundedIcon fontSize="small" />}
+            </ListItemButton>
+
+            <Collapse in={open} timeout="auto" unmountOnExit>
+              {sectionItems.map((item) => {
+                const Icon = item.icon;
+                const active = item.path === current?.path;
+                return (
+                  <ListItemButton
+                    key={item.path}
+                    onClick={() => onItemClick(item.path)}
+                    selected={active}
+                    sx={{
+                      mx: 1,
+                      my: 0.25,
+                      pl: 3,
+                      borderRadius: 2,
+                      color: sb.color,
+                      '&:hover': { bgcolor: sb.hoverBg },
+                      '&.Mui-selected': {
+                        bgcolor: sb.selectedBg,
+                        color: sb.selectedColor,
+                        '& .MuiListItemIcon-root': { color: sb.selectedColor },
+                        '&:hover': { bgcolor: sb.selectedHoverBg },
+                      },
+                    }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 40, color: active ? 'inherit' : sb.iconColor }}>
+                      <Icon />
+                    </ListItemIcon>
+                    <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600 }} />
+                  </ListItemButton>
+                );
+              })}
+            </Collapse>
+          </Box>
+        );
+      })}
     </List>
   );
 
@@ -236,6 +264,9 @@ export default function AppShell() {
             </Menu>
           </Toolbar>
         </AppBar>
+
+        {/* Subscription lock / trial-ending banner (org users only). */}
+        <SubscriptionBanner />
 
         {/* Page content. Bottom padding on mobile clears the bottom nav. */}
         <Box

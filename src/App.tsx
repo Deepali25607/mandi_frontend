@@ -29,11 +29,13 @@ import UsersPage from '@/features/admin/UsersPage';
 import RolesPage from '@/features/admin/RolesPage';
 import AppearancePage from '@/features/admin/AppearancePage';
 import BackupPage from '@/features/admin/BackupPage';
+import SubscriptionPage from '@/features/admin/SubscriptionPage';
 import ReportsPage from '@/features/reports/ReportsPage';
 import ReportRunnerPage from '@/features/reports/ReportRunnerPage';
 import PlatformDashboardPage from '@/features/platform/PlatformDashboardPage';
 import OrganizationsPage from '@/features/platform/OrganizationsPage';
 import PlansPage from '@/features/platform/PlansPage';
+import PlatformPaymentsPage from '@/features/platform/PlatformPaymentsPage';
 import BrandingPage from '@/features/platform/BrandingPage';
 import PlatformSettingsPage from '@/features/platform/PlatformSettingsPage';
 import { RoleGuard, RoleHome } from '@/components/common/RoleGuard';
@@ -62,10 +64,12 @@ const IMPLEMENTED = new Set([
   '/roles',
   '/appearance',
   '/backup',
+  '/subscription',
   '/reports',
   '/platform',
   '/platform/organizations',
   '/platform/plans',
+  '/platform/payments',
   '/platform/branding',
   '/platform/settings',
 ]);
@@ -103,6 +107,7 @@ export default function App() {
         <Route path="/platform" element={<RoleGuard scope="platform"><PlatformDashboardPage /></RoleGuard>} />
         <Route path="/platform/organizations" element={<RoleGuard scope="platform"><OrganizationsPage /></RoleGuard>} />
         <Route path="/platform/plans" element={<RoleGuard scope="platform"><PlansPage /></RoleGuard>} />
+        <Route path="/platform/payments" element={<RoleGuard scope="platform"><PlatformPaymentsPage /></RoleGuard>} />
         <Route path="/platform/branding" element={<RoleGuard scope="platform"><BrandingPage /></RoleGuard>} />
         <Route path="/platform/settings" element={<RoleGuard scope="platform"><PlatformSettingsPage /></RoleGuard>} />
 
@@ -127,6 +132,7 @@ export default function App() {
         <Route path="/users" element={<UsersPage />} />
         <Route path="/roles" element={<RolesPage />} />
         <Route path="/appearance" element={<AppearancePage />} />
+        <Route path="/subscription" element={<RoleGuard scope="org"><SubscriptionPage /></RoleGuard>} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/reports/:reportKey" element={<ReportRunnerPage />} />
 
