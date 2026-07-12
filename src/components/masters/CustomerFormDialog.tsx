@@ -17,6 +17,7 @@ const blankForm = {
   area: '',
   gstNumber: '',
   creditLimit: 0,
+  openingBalance: 0,
 };
 
 interface Props {
@@ -50,6 +51,7 @@ export default function CustomerFormDialog({ open, onClose, editing, initialName
             area: editing.area ?? '',
             gstNumber: editing.gstNumber ?? '',
             creditLimit: editing.creditLimit,
+            openingBalance: editing.openingBalance ?? 0,
           }
         : { ...blankForm, name: initialName ?? '' },
     );
@@ -74,7 +76,16 @@ export default function CustomerFormDialog({ open, onClose, editing, initialName
             <TextField label="Mobile" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} inputProps={{ inputMode: 'numeric' }} />
           </Stack>
           <TextField label="GST number" value={form.gstNumber} onChange={(e) => setForm({ ...form, gstNumber: e.target.value })} />
-          <TextField label="Credit limit (₹)" type="number" value={form.creditLimit} onChange={(e) => setForm({ ...form, creditLimit: Number(e.target.value) })} />
+          <Stack direction="row" spacing={2}>
+            <TextField label="Credit limit (₹)" type="number" value={form.creditLimit} onChange={(e) => setForm({ ...form, creditLimit: Number(e.target.value) })} />
+            <TextField
+              label="Opening balance (₹)"
+              type="number"
+              value={form.openingBalance}
+              onChange={(e) => setForm({ ...form, openingBalance: Number(e.target.value) })}
+              helperText="Amount customer already owes"
+            />
+          </Stack>
         </Stack>
       </DialogContent>
       <DialogActions sx={{ p: 2 }}>

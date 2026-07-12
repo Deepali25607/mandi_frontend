@@ -49,7 +49,9 @@ export interface SupplierPayment {
   notes?: string;
 }
 
-export type ExpenseCategory = 'labour' | 'transport' | 'electricity' | 'rent' | 'miscellaneous';
+/** Free-text category (users can create their own); these are the built-in suggestions. */
+export type ExpenseCategory = string;
+export const DEFAULT_EXPENSE_CATEGORIES = ['labour', 'transport', 'electricity', 'rent', 'miscellaneous'];
 
 export interface Expense {
   id: string;

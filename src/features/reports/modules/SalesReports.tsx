@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useGetSalesQuery } from '@/api/operationsApi';
+import { useGetSalesQuery, useGetStockLotsQuery } from '@/api/operationsApi';
 import { useLookups } from '@/utils/useLookups';
 import {
   DateRangeFilter, FilterSelect, ReportShell, inRange, useMonthRange,
@@ -37,6 +37,114 @@ export function SalesRegisterReport() {
       filters={<>
         <DateRangeFilter from={from} to={to} onFrom={setFrom} onTo={setTo} />
         <FilterSelect label="Customer" value={customerId} onChange={setCustomerId} options={customers.map((c) => ({ value: c.id, label: c.name }))} />
+      </>}
+    />
+  );
+}
+
+export function SaleItemRegisterReport() {
+  const { data: sales, isLoading } = useGetSalesQuery();
+  const { data: lots } = useGetStockLotsQuery();
+  const { items, customers, itemName, customerName } = useLookups();
+  const { from, to, setFrom, setTo } = useMonthRange();
+  const [customerId, setCustomerId] = useState('');
+  const [itemId, setItemId] = useState('');
+
+  const lotNumber = useMemo(() => {
+    const m = new Map((lots ?? []).map((l) => [l.id, l.lotNumber]));
+    return (id: string | null) => (id ? m.get(id) ?? '—' : '—');
+  }, [lots]);
+
+  const columns: ReportColumn[] = [
+    { key: 'date', label: 'Date' },
+    { key: 'no', label: 'Invoice' },
+    { key: 'customer', label: 'Customer' },
+    { key: 'item', label: 'Item' },
+    { key: 'lot', label: 'Lot No.' },
+    { key: 'qty', label: 'Qty', numeric: true, total: true },
+    { key: 'weight', label: 'Weight (kg)', numeric: true, total: true },
+    { key: 'rate', label: 'Rate', currency: true },
+    { key: 'gross', label: 'Gross', currency: true, total: true },
+    { key: 'commission', label: 'Commission', currency: true, total: true },
+    { key: 'fee', label: 'Market Fee', currency: true, total: true },
+    { key: 'net', label: 'Net (supplier)', currency: true, total: true },
+  ];
+
+  const rows: ReportRow[] = useMemo(() => (sales ?? [])
+    .filter((s) => inRange(s.date, from, to) && (!customerId || s.customerId === customerId))
+    .flatMap((s) =>
+      (s.lines ?? [])
+        .filter((l) => !itemId || l.itemId === itemId)
+        .map((l) => ({
+          date: s.date, no: s.saleNumber, customer: customerName(s.customerId),
+          item: itemName(l.itemId), lot: lotNumber(l.lotId),
+          qty: l.quantity, weight: l.weight, rate: l.rate,
+          gross: l.grossAmount, commission: l.commissionAmount, fee: l.marketFeeAmount, net: l.netAmount,
+        })),
+    ), [sales, from, to, customerId, itemId, customerName, itemName, lotNumber]);
+
+  return (
+    <ReportShell
+      title="Sale Item Register" description="Every item line sold — with lot, quantity, rate and value."
+      meta={`${from} to ${to}`} columns={columns} rows={rows} loading={isLoading}
+      filters={<>
+        <DateRangeFilter from={from} to={to} onFrom={setFrom} onTo={setTo} />
+        <FilterSelect label="Customer" value={customerId} onChange={setCustomerId} options={customers.map((c) => ({ value: c.id, label: c.name }))} />
+        <FilterSelect label="Item" value={itemId} onChange={setItemId} options={items.map((i) => ({ value: i.id, label: i.name }))} />
+      </>}
+    />
+  );
+}
+
+export function SupplierSaleRegisterReport() {
+  const { data: sales, isLoading } = useGetSalesQuery();
+  const { data: lots } = useGetStockLotsQuery();
+  const { items, suppliers, itemName, supplierName } = useLookups();
+  const { from, to, setFrom, setTo } = useMonthRange();
+  const [supplierId, setSupplierId] = useState('');
+  const [itemId, setItemId] = useState('');
+
+  const lotById = useMemo(() => new Map((lots ?? []).map((l) => [l.id, l])), [lots]);
+
+  const columns: ReportColumn[] = [
+    { key: 'date', label: 'Date' },
+    { key: 'no', label: 'Invoice' },
+    { key: 'supplier', label: 'Supplier' },
+    { key: 'item', label: 'Item' },
+    { key: 'lot', label: 'Lot No.' },
+    { key: 'qty', label: 'Qty', numeric: true, total: true },
+    { key: 'weight', label: 'Weight (kg)', numeric: true, total: true },
+    { key: 'rate', label: 'Rate', currency: true },
+    { key: 'gross', label: 'Gross', currency: true, total: true },
+    { key: 'commission', label: 'Commission', currency: true, total: true },
+    { key: 'fee', label: 'Market Fee', currency: true, total: true },
+    { key: 'net', label: 'Net payable', currency: true, total: true },
+  ];
+
+  // Only lot-linked sale lines are attributable to a supplier (via the lot).
+  const rows: ReportRow[] = useMemo(() => (sales ?? [])
+    .filter((s) => inRange(s.date, from, to))
+    .flatMap((s) =>
+      (s.lines ?? [])
+        .map((l) => ({ line: l, lot: l.lotId ? lotById.get(l.lotId) : undefined }))
+        .filter(({ lot }) => lot && (!supplierId || lot.supplierId === supplierId))
+        .filter(({ line }) => !itemId || line.itemId === itemId)
+        .map(({ line, lot }) => ({
+          date: s.date, no: s.saleNumber, supplier: supplierName(lot!.supplierId),
+          item: itemName(line.itemId), lot: lot!.lotNumber,
+          qty: line.quantity, weight: line.weight, rate: line.rate,
+          gross: line.grossAmount, commission: line.commissionAmount, fee: line.marketFeeAmount, net: line.netAmount,
+        })),
+    ), [sales, lotById, from, to, supplierId, itemId, supplierName, itemName]);
+
+  return (
+    <ReportShell
+      title="Supplier-wise Sales" description="Sold-lot lines attributed to each supplier, with net payable."
+      meta={`${from} to ${to}`} columns={columns} rows={rows} loading={isLoading}
+      filters={<>
+        <DateRangeFilter from={from} to={to} onFrom={setFrom} onTo={setTo} />
+        <FilterSelect label="Supplier" value={supplierId} onChange={setSupplierId} options={suppliers.map((s) => ({ value: s.id, label: s.name }))} />
+        <FilterSelect label="Item" value={itemId} onChange={setItemId} options={items.map((i) => ({ value: i.id, label: i.name }))} />
       </>}
     />
   );

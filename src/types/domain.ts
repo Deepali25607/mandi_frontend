@@ -90,6 +90,9 @@ export interface Arrival {
   totalValue: number;
   lines: ArrivalLine[];
   createdAt: string;
+  /** Present on GET /arrivals/:id — true when items can't be edited (stock used). */
+  linesLocked?: boolean;
+  lockReason?: string | null;
 }
 
 export interface SaleLine {
@@ -120,6 +123,9 @@ export interface Sale {
   netAmount: number;
   lines: SaleLine[];
   createdAt: string;
+  /** Present on GET /sales/:id — true when items can't be edited (settled). */
+  linesLocked?: boolean;
+  lockReason?: string | null;
 }
 
 // ---- Create payloads ----

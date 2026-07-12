@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Card,
@@ -8,6 +9,7 @@ import {
   CardContent,
   Chip,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
@@ -18,45 +20,64 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import { useCreateExpenseMutation, useGetExpensesQuery } from '@/api/financeApi';
+import {
+  useCreateExpenseMutation,
+  useGetExpenseCategoriesQuery,
+  useGetExpensesQuery,
+} from '@/api/financeApi';
 import { formatCurrency } from '@/utils/format';
 import type { PaymentMode } from '@/types/domain';
-import type { Expense, ExpenseCategory } from '@/types/finance';
+import { DEFAULT_EXPENSE_CATEGORIES, type Expense } from '@/types/finance';
 
-const CATEGORIES: { value: ExpenseCategory; label: string }[] = [
-  { value: 'labour', label: 'Labour' },
-  { value: 'transport', label: 'Transport' },
-  { value: 'electricity', label: 'Electricity' },
-  { value: 'rent', label: 'Rent' },
-  { value: 'miscellaneous', label: 'Miscellaneous' },
-];
 const PAYMENT_MODES: PaymentMode[] = ['cash', 'upi', 'bank'];
 const today = () => new Date().toISOString().slice(0, 10);
 
 export default function ExpensesPage() {
   const { data: expenses } = useGetExpensesQuery();
+  const { data: categoryList } = useGetExpenseCategoriesQuery();
   const [createExpense, { isLoading: saving }] = useCreateExpenseMutation();
 
   const [date, setDate] = useState(today());
-  const [category, setCategory] = useState<ExpenseCategory>('labour');
+  const [category, setCategory] = useState('labour');
   const [amount, setAmount] = useState('');
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
   const [notes, setNotes] = useState('');
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<Expense | null>(null);
+  // Categories the user has created this session but not yet saved an expense for,
+  // so they appear in the dropdown immediately.
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
+  const [catDialogOpen, setCatDialogOpen] = useState(false);
+  const [newCat, setNewCat] = useState('');
 
+  const categoryOptions = useMemo(() => {
+    const merged = [...(categoryList ?? DEFAULT_EXPENSE_CATEGORIES), ...customCategories];
+    return [...new Set(merged.map((c) => c.toLowerCase()))].sort((a, b) => a.localeCompare(b));
+  }, [categoryList, customCategories]);
   const total = (expenses ?? []).reduce((s, e) => s + e.amount, 0);
   const recent = useMemo(() => (expenses ?? []).slice(0, 20), [expenses]);
 
+  const addCategory = () => {
+    const c = newCat.trim().toLowerCase();
+    if (!c) return;
+    setCustomCategories((prev) => (prev.includes(c) ? prev : [...prev, c]));
+    setCategory(c);
+    setNewCat('');
+    setCatDialogOpen(false);
+  };
+
   const save = async () => {
     setError(null);
+    const cat = category.trim().toLowerCase();
+    if (!cat) { setError('Please enter or pick a category.'); return; }
     try {
-      const res = await createExpense({ date, category, amount: Number(amount), paymentMode, notes: notes || undefined }).unwrap();
+      const res = await createExpense({ date, category: cat, amount: Number(amount), paymentMode, notes: notes || undefined }).unwrap();
       setToast(`${res.expenseNumber}: ${formatCurrency(res.amount, false)}`);
       setAmount('');
       setNotes('');
@@ -76,10 +97,35 @@ export default function ExpensesPage() {
           <CardContent>
             <Stack spacing={2}>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                <TextField select label="Category" value={category} onChange={(e) => setCategory(e.target.value as ExpenseCategory)}>
-                  {CATEGORIES.map((c) => <MenuItem key={c.value} value={c.value}>{c.label}</MenuItem>)}
-                </TextField>
-                <TextField label="Amount ₹" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} inputProps={{ inputMode: 'decimal' }} />
+                <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ flex: 1 }}>
+                  <Autocomplete
+                    freeSolo
+                    fullWidth
+                    options={categoryOptions}
+                    inputValue={category}
+                    onInputChange={(_, v) => setCategory(v)}
+                    renderOption={(props, option) => (
+                      <li {...props} style={{ textTransform: 'capitalize' }}>{option}</li>
+                    )}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Category"
+                        placeholder="Pick or type a category"
+                        sx={{ '& input': { textTransform: 'capitalize' } }}
+                      />
+                    )}
+                  />
+                  <Button
+                    variant="outlined"
+                    startIcon={<AddRoundedIcon />}
+                    onClick={() => { setNewCat(''); setCatDialogOpen(true); }}
+                    sx={{ flexShrink: 0, whiteSpace: 'nowrap', height: 56 }}
+                  >
+                    New
+                  </Button>
+                </Stack>
+                <TextField label="Amount ₹" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} inputProps={{ inputMode: 'decimal' }} sx={{ flex: 1 }} />
               </Stack>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <TextField label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} InputLabelProps={{ shrink: true }} />
@@ -89,7 +135,7 @@ export default function ExpensesPage() {
               </Stack>
               <TextField label="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
               {error && <Alert severity="error">{error}</Alert>}
-              <Button size="large" variant="contained" startIcon={<ReceiptLongRoundedIcon />} onClick={save} disabled={!(Number(amount) > 0) || saving}>
+              <Button size="large" variant="contained" startIcon={<ReceiptLongRoundedIcon />} onClick={save} disabled={!(Number(amount) > 0) || !category.trim() || saving}>
                 {saving ? 'Saving…' : 'Add Expense'}
               </Button>
             </Stack>
@@ -170,6 +216,27 @@ export default function ExpensesPage() {
             </DialogContent>
           </>
         )}
+      </Dialog>
+
+      {/* Create-category dialog */}
+      <Dialog open={catDialogOpen} onClose={() => setCatDialogOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle sx={{ fontWeight: 800 }}>New expense category</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            label="Category name"
+            placeholder="e.g. Diesel, Packaging, Loading"
+            value={newCat}
+            onChange={(e) => setNewCat(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') addCategory(); }}
+            sx={{ mt: 1, '& input': { textTransform: 'capitalize' } }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setCatDialogOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={addCategory} disabled={!newCat.trim()}>Add</Button>
+        </DialogActions>
       </Dialog>
 
       <Snackbar open={Boolean(toast)} autoHideDuration={3000} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>

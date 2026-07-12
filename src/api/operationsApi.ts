@@ -32,9 +32,17 @@ export const operationsApi = apiSlice.injectEndpoints({
       query: () => '/arrivals',
       providesTags: ['Arrival'],
     }),
+    getArrival: build.query<Arrival, string>({
+      query: (id) => `/arrivals/${id}`,
+      providesTags: ['Arrival'],
+    }),
     createArrival: build.mutation<Arrival, CreateArrivalPayload>({
       query: (body) => ({ url: '/arrivals', method: 'POST', body }),
       invalidatesTags: ['Arrival', 'Inventory', 'Dashboard'],
+    }),
+    updateArrival: build.mutation<Arrival, { id: string; body: Partial<CreateArrivalPayload> }>({
+      query: ({ id, body }) => ({ url: `/arrivals/${id}`, method: 'PATCH', body }),
+      invalidatesTags: ['Arrival', 'Inventory', 'Dashboard', 'Outstanding'],
     }),
 
     // ---- Sales ----
@@ -42,9 +50,17 @@ export const operationsApi = apiSlice.injectEndpoints({
       query: () => '/sales',
       providesTags: ['Sale'],
     }),
+    getSale: build.query<Sale, string>({
+      query: (id) => `/sales/${id}`,
+      providesTags: ['Sale'],
+    }),
     createSale: build.mutation<Sale, CreateSalePayload>({
       query: (body) => ({ url: '/sales', method: 'POST', body }),
       invalidatesTags: ['Sale', 'Inventory', 'Dashboard'],
+    }),
+    updateSale: build.mutation<Sale, { id: string; body: Partial<CreateSalePayload> }>({
+      query: ({ id, body }) => ({ url: `/sales/${id}`, method: 'PATCH', body }),
+      invalidatesTags: ['Sale', 'Inventory', 'Dashboard', 'Outstanding', 'SupplierBill'],
     }),
 
     // ---- For-Sale Challans ----
@@ -74,9 +90,15 @@ export const {
   useGetStockLotsQuery,
   useGetStockSummaryQuery,
   useGetArrivalsQuery,
+  useGetArrivalQuery,
+  useLazyGetArrivalQuery,
   useCreateArrivalMutation,
+  useUpdateArrivalMutation,
   useGetSalesQuery,
+  useGetSaleQuery,
+  useLazyGetSaleQuery,
   useCreateSaleMutation,
+  useUpdateSaleMutation,
   useGetChallansQuery,
   useCreateChallanMutation,
   useReportChallanMutation,

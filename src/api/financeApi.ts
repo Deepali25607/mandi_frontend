@@ -39,6 +39,10 @@ export const financeApi = apiSlice.injectEndpoints({
       query: () => '/expenses',
       providesTags: ['Expense'],
     }),
+    getExpenseCategories: build.query<string[], void>({
+      query: () => '/expenses/categories',
+      providesTags: ['Expense'],
+    }),
     createExpense: build.mutation<Expense, {
       date: string; category: ExpenseCategory; amount: number; paymentMode?: PaymentMode; notes?: string;
     }>({
@@ -139,6 +143,7 @@ export const {
   useGetCollectionsQuery,
   useCreateCollectionMutation,
   useGetExpensesQuery,
+  useGetExpenseCategoriesQuery,
   useCreateExpenseMutation,
   useGetSupplierBillsQuery,
   usePreviewSupplierBillMutation,

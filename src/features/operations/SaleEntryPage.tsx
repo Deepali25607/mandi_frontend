@@ -18,8 +18,16 @@ import { alpha } from '@mui/material/styles';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import PersonAddAltRoundedIcon from '@mui/icons-material/PersonAddAltRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import { useGetCustomersQuery, useGetItemsQuery } from '@/api/mastersApi';
-import { useCreateSaleMutation, useGetStockLotsQuery } from '@/api/operationsApi';
+import {
+  useCreateSaleMutation,
+  useGetSalesQuery,
+  useGetStockLotsQuery,
+  useLazyGetSaleQuery,
+  useUpdateSaleMutation,
+} from '@/api/operationsApi';
 import { useGetCustomerOutstandingQuery } from '@/api/financeApi';
 import CustomerFormDialog from '@/components/masters/CustomerFormDialog';
 import { formatCurrency } from '@/utils/format';
@@ -63,17 +71,6 @@ function compute(l: LineDraft) {
 }
 
 export default function SaleEntryPage() {
-  const { data: items } = useGetItemsQuery();
-  const { data: customers } = useGetCustomersQuery();
-  const { data: lots } = useGetStockLotsQuery({ availableOnly: true });
-  const { data: outstanding } = useGetCustomerOutstandingQuery();
-  const [createSale, { isLoading }] = useCreateSaleMutation();
-
-  const pendingMap = useMemo(
-    () => new Map((outstanding ?? []).map((r) => [r.customerId, r.balance])),
-    [outstanding],
-  );
-
   const [date, setDate] = useState(today());
   const [customerId, setCustomerId] = useState('');
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('credit');
@@ -81,9 +78,32 @@ export default function SaleEntryPage() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [newCustomerOpen, setNewCustomerOpen] = useState(false);
+  // Edit mode: when set, the form updates an existing sale instead of creating.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editNumber, setEditNumber] = useState('');
+  const [linesLocked, setLinesLocked] = useState(false);
+  const [lockReason, setLockReason] = useState<string | null>(null);
+
+  const { data: items } = useGetItemsQuery();
+  const { data: customers } = useGetCustomersQuery();
+  // While editing, load ALL lots so the sale's already-drawn (possibly closed)
+  // lots still appear in the picker; otherwise only lots with stock available.
+  const { data: lots } = useGetStockLotsQuery(editingId ? {} : { availableOnly: true });
+  const { data: outstanding } = useGetCustomerOutstandingQuery();
+  const { data: sales } = useGetSalesQuery();
+  const [createSale, { isLoading }] = useCreateSaleMutation();
+  const [updateSale, { isLoading: updating }] = useUpdateSaleMutation();
+  const [fetchSale] = useLazyGetSaleQuery();
+
+  const pendingMap = useMemo(
+    () => new Map((outstanding ?? []).map((r) => [r.customerId, r.balance])),
+    [outstanding],
+  );
 
   const activeItems = (items ?? []).filter((i) => i.isActive);
   const activeCustomers = (customers ?? []).filter((c) => c.isActive);
+  const customerName = (id: string) => (customers ?? []).find((c) => c.id === id)?.name ?? 'Customer';
+  const recentSales = useMemo(() => (sales ?? []).slice(0, 15), [sales]);
 
   const lotsByItem = useMemo(() => {
     const m = new Map<string, StockLot[]>();
@@ -130,30 +150,80 @@ export default function SaleEntryPage() {
   );
   const canSave = Boolean(customerId) && validLines.length > 0;
   const selectedPending = customerId ? pendingMap.get(customerId) ?? 0 : 0;
+  const busy = isLoading || updating;
+
+  const buildLines = () =>
+    validLines.map((l) => ({
+      itemId: l.itemId,
+      lotId: l.lotId || undefined,
+      quantity: Number(l.quantity) || 0,
+      weight: Number(l.weight) || 0,
+      rate: Number(l.rate),
+      // A blank field means 0 (the item default only pre-fills the input;
+      // clearing it = no charge), so the saved sale matches the on-screen figures.
+      commissionPct: l.commissionPct === '' ? 0 : Number(l.commissionPct),
+      marketFeePct: l.marketFeePct === '' ? 0 : Number(l.marketFeePct),
+    }));
+
+  const resetForm = () => {
+    setEditingId(null);
+    setEditNumber('');
+    setLinesLocked(false);
+    setLockReason(null);
+    setDate(today());
+    setCustomerId('');
+    setPaymentMode('credit');
+    setLines([emptyLine()]);
+    setError(null);
+  };
+
+  const enterEdit = async (id: string) => {
+    setError(null);
+    try {
+      const s = await fetchSale(id).unwrap();
+      setEditingId(s.id);
+      setEditNumber(s.saleNumber);
+      setDate(s.date);
+      setCustomerId(s.customerId);
+      setPaymentMode(s.paymentMode);
+      setLines(
+        s.lines.length
+          ? s.lines.map((l) => ({
+              itemId: l.itemId,
+              lotId: l.lotId ?? '',
+              quantity: String(l.quantity),
+              weight: String(l.weight),
+              rate: String(l.rate),
+              commissionPct: String(l.commissionPct),
+              marketFeePct: String(l.marketFeePct),
+            }))
+          : [emptyLine()],
+      );
+      setLinesLocked(Boolean(s.linesLocked));
+      setLockReason(s.lockReason ?? null);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch {
+      setError('Could not load this sale for editing.');
+    }
+  };
 
   const save = async () => {
     setError(null);
     try {
-      const sale = await createSale({
-        date,
-        customerId,
-        paymentMode,
-        lines: validLines.map((l) => ({
-          itemId: l.itemId,
-          lotId: l.lotId || undefined,
-          quantity: Number(l.quantity) || 0,
-          weight: Number(l.weight) || 0,
-          rate: Number(l.rate),
-          // Send exactly what the form shows: a blank field means 0 (the item
-          // default only pre-fills the input; clearing it = no charge), so the
-          // saved sale and the settlement match the on-screen figures.
-          commissionPct: l.commissionPct === '' ? 0 : Number(l.commissionPct),
-          marketFeePct: l.marketFeePct === '' ? 0 : Number(l.marketFeePct),
-        })),
-      }).unwrap();
-      setToast(`Sale ${sale.saleNumber} saved · billed ${formatCurrency(sale.grossAmount, false)}`);
-      setCustomerId('');
-      setLines([emptyLine()]);
+      if (editingId) {
+        // Locked → header-only patch (no lines); else full edit.
+        const body = linesLocked
+          ? { date, customerId, paymentMode }
+          : { date, customerId, paymentMode, lines: buildLines() };
+        const sale = await updateSale({ id: editingId, body }).unwrap();
+        setToast(`Sale ${sale.saleNumber} updated · billed ${formatCurrency(sale.grossAmount, false)}`);
+        resetForm();
+      } else {
+        const sale = await createSale({ date, customerId, paymentMode, lines: buildLines() }).unwrap();
+        setToast(`Sale ${sale.saleNumber} saved · billed ${formatCurrency(sale.grossAmount, false)}`);
+        setCustomerId('');
+        setLines([emptyLine()]);
+      }
     } catch (e) {
       const msg = (e as { data?: { message?: string | string[] } })?.data?.message;
       setError(Array.isArray(msg) ? msg.join(', ') : msg ?? 'Could not save sale.');
@@ -162,7 +232,18 @@ export default function SaleEntryPage() {
 
   return (
     <Stack spacing={2} sx={{ maxWidth: 760, mx: 'auto' }}>
-      <Typography variant="h6" sx={{ fontWeight: 800 }}>Daily Sale Entry</Typography>
+      <Stack direction="row" alignItems="center" spacing={1}>
+        <Typography variant="h6" sx={{ fontWeight: 800, flexGrow: 1 }}>
+          {editingId ? `Edit Sale ${editNumber}` : 'Daily Sale Entry'}
+        </Typography>
+        {editingId && (
+          <Button size="small" color="inherit" onClick={resetForm}>Cancel edit</Button>
+        )}
+      </Stack>
+
+      {editingId && linesLocked && (
+        <Alert severity="warning">{lockReason ?? 'Items are locked; only header details can be edited.'}</Alert>
+      )}
 
       <Card>
         <CardContent>
@@ -239,14 +320,14 @@ export default function SaleEntryPage() {
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Typography variant="subtitle2" sx={{ flexGrow: 1, color: 'text.secondary' }}>Item {idx + 1}</Typography>
                     <Chip size="small" label={`Bill ${formatCurrency(c.gross, false)}`} color="primary" sx={{ fontWeight: 700 }} />
-                    <IconButton size="small" onClick={() => removeLine(idx)} disabled={lines.length === 1}>
+                    <IconButton size="small" onClick={() => removeLine(idx)} disabled={lines.length === 1 || linesLocked}>
                       <DeleteOutlineRoundedIcon fontSize="small" />
                     </IconButton>
                   </Box>
 
                   <Grid container spacing={1.5}>
                     <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField select fullWidth size="small" label="Item" value={line.itemId} onChange={(e) => onSelectItem(idx, e.target.value)}>
+                      <TextField select fullWidth size="small" label="Item" value={line.itemId} disabled={linesLocked} onChange={(e) => onSelectItem(idx, e.target.value)}>
                         {activeItems.map((it) => (
                           <MenuItem key={it.id} value={it.id}>{it.name}</MenuItem>
                         ))}
@@ -257,7 +338,7 @@ export default function SaleEntryPage() {
                         select fullWidth size="small" label="Lot (stock)"
                         value={line.lotId}
                         onChange={(e) => updateLine(idx, { lotId: e.target.value })}
-                        disabled={!line.itemId}
+                        disabled={!line.itemId || linesLocked}
                         helperText={selectedLot ? `${selectedLot.weightAvailable} kg available @ ${formatCurrency(selectedLot.rate, false)}` : 'No lot linked'}
                       >
                         <MenuItem value="">No specific lot</MenuItem>
@@ -267,12 +348,13 @@ export default function SaleEntryPage() {
                       </TextField>
                     </Grid>
                     <Grid size={4}>
-                      <TextField fullWidth size="small" label="Qty" type="number" value={line.quantity} onChange={(e) => updateLine(idx, { quantity: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
+                      <TextField fullWidth size="small" label="Qty" type="number" value={line.quantity} disabled={linesLocked} onChange={(e) => updateLine(idx, { quantity: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
                     </Grid>
                     <Grid size={4}>
                       <TextField
                         fullWidth size="small" label="Weight (kg)" type="number"
                         value={line.weight}
+                        disabled={linesLocked}
                         onChange={(e) => updateLine(idx, { weight: e.target.value })}
                         error={overdraw}
                         helperText={overdraw ? 'Exceeds stock' : ' '}
@@ -280,13 +362,13 @@ export default function SaleEntryPage() {
                       />
                     </Grid>
                     <Grid size={4}>
-                      <TextField fullWidth size="small" label="Rate ₹" type="number" value={line.rate} onChange={(e) => updateLine(idx, { rate: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
+                      <TextField fullWidth size="small" label="Rate ₹" type="number" value={line.rate} disabled={linesLocked} onChange={(e) => updateLine(idx, { rate: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
                     </Grid>
                     <Grid size={6}>
-                      <TextField fullWidth size="small" label="Commission %" type="number" value={line.commissionPct} onChange={(e) => updateLine(idx, { commissionPct: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
+                      <TextField fullWidth size="small" label="Commission %" type="number" value={line.commissionPct} disabled={linesLocked} onChange={(e) => updateLine(idx, { commissionPct: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
                     </Grid>
                     <Grid size={6}>
-                      <TextField fullWidth size="small" label="Market fee %" type="number" value={line.marketFeePct} onChange={(e) => updateLine(idx, { marketFeePct: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
+                      <TextField fullWidth size="small" label="Market fee %" type="number" value={line.marketFeePct} disabled={linesLocked} onChange={(e) => updateLine(idx, { marketFeePct: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
                     </Grid>
                   </Grid>
 
@@ -302,14 +384,16 @@ export default function SaleEntryPage() {
             </Card>
           );
         })}
-        <Button startIcon={<AddRoundedIcon />} onClick={addLine} variant="outlined">
+        <Button startIcon={<AddRoundedIcon />} onClick={addLine} variant="outlined" disabled={linesLocked}>
           Add another item
         </Button>
       </Stack>
 
       {error && <Alert severity="error">{error}</Alert>}
 
-      <Card sx={{ position: 'sticky', bottom: 8 }}>
+      {/* Raise above the fixed mobile bottom-nav (56px + safe area) so the Save
+          bar isn't overlapped; sits at 8px on desktop where there's no nav. */}
+      <Card sx={{ position: 'sticky', bottom: { xs: 'calc(56px + env(safe-area-inset-bottom) + 8px)', md: 8 }, zIndex: 2 }}>
         <CardContent>
           <Grid container spacing={1} sx={{ mb: 1.5 }}>
             <Total label="Customer bill" value={totals.gross} bold />
@@ -317,9 +401,50 @@ export default function SaleEntryPage() {
             <Total label="Market fee" value={totals.marketFee} />
             <Total label="Supplier net" value={totals.net} color="success.main" />
           </Grid>
-          <Button fullWidth size="large" variant="contained" onClick={save} disabled={!canSave || isLoading}>
-            {isLoading ? 'Saving…' : 'Save Sale'}
+          <Button fullWidth size="large" variant="contained" onClick={save} disabled={!canSave || busy}>
+            {editingId
+              ? updating ? 'Updating…' : 'Update Sale'
+              : isLoading ? 'Saving…' : 'Save Sale'}
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Recent sales — click Edit to load one into the form above. */}
+      <Card variant="outlined">
+        <CardContent sx={{ pb: '8px !important' }}>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+            <HistoryRoundedIcon color="primary" fontSize="small" />
+            <Typography variant="subtitle1" sx={{ fontWeight: 800, flexGrow: 1 }}>Recent sales</Typography>
+            <Chip size="small" label={(sales ?? []).length} />
+          </Stack>
+          {recentSales.length === 0 ? (
+            <Typography color="text.secondary" variant="body2" sx={{ py: 3, textAlign: 'center' }}>
+              No sales yet. Saved sales show here.
+            </Typography>
+          ) : (
+            <Stack spacing={1}>
+              {recentSales.map((s) => (
+                <Stack key={s.id} direction="row" alignItems="center" spacing={1}>
+                  <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 700 }} noWrap>{customerName(s.customerId)}</Typography>
+                    <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+                      {s.saleNumber} · {s.date} · {s.lines.length} item(s)
+                    </Typography>
+                  </Box>
+                  <Typography sx={{ fontWeight: 800 }}>{formatCurrency(s.grossAmount)}</Typography>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<EditRoundedIcon />}
+                    onClick={() => enterEdit(s.id)}
+                    disabled={editingId === s.id}
+                  >
+                    Edit
+                  </Button>
+                </Stack>
+              ))}
+            </Stack>
+          )}
         </CardContent>
       </Card>
 

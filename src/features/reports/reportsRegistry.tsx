@@ -9,7 +9,7 @@ import AgricultureRoundedIcon from '@mui/icons-material/AgricultureRounded';
 import HandshakeRoundedIcon from '@mui/icons-material/HandshakeRounded';
 import MoneyOffRoundedIcon from '@mui/icons-material/MoneyOffRounded';
 import type { PlatformFeature } from '@/types';
-import { SalesRegisterReport, ItemWiseSalesReport } from './modules/SalesReports';
+import { SalesRegisterReport, SaleItemRegisterReport, SupplierSaleRegisterReport, ItemWiseSalesReport } from './modules/SalesReports';
 import { PurchaseRegisterReport, ItemWisePurchaseReport } from './modules/PurchaseReports';
 import { StockSummaryReport, StockLotReport, ItemMasterReport } from './modules/InventoryReports';
 import { CollectionRegisterReport } from './modules/CollectionReports';
@@ -53,6 +53,7 @@ export const MODULE_ORDER: ReportModule[] = [
 
 export const REPORTS: ReportDef[] = [
   { key: 'sales-register', module: 'Sales', title: 'Sales Register', description: 'All sales with commission and market fee.', Component: SalesRegisterReport },
+  { key: 'sale-item-register', module: 'Sales', title: 'Sale Item Register', description: 'Every item line sold, with lot and value.', Component: SaleItemRegisterReport },
   { key: 'item-wise-sales', module: 'Sales', title: 'Item-wise Sales', description: 'Quantity, weight and value sold per item.', Component: ItemWiseSalesReport },
 
   { key: 'purchase-register', module: 'Purchase', title: 'Purchase Register', description: 'Arrivals received from suppliers.', Component: PurchaseRegisterReport },
@@ -74,6 +75,7 @@ export const REPORTS: ReportDef[] = [
   { key: 'customer-master', module: 'Customers', title: 'Customer Master', description: 'All customers with credit limits.', Component: CustomerMasterReport },
 
   { key: 'supplier-outstanding', module: 'Suppliers', title: 'Supplier Outstanding', description: 'Payables per supplier.', Component: SupplierOutstandingReport },
+  { key: 'supplier-wise-sales', module: 'Suppliers', title: 'Supplier-wise Sales', description: 'Sold-lot lines attributed to each supplier, with net payable.', Component: SupplierSaleRegisterReport },
   { key: 'supplier-master', module: 'Suppliers', title: 'Supplier Master', description: 'All suppliers with commission rates.', Component: SupplierMasterReport },
 
   { key: 'supplier-bills', module: 'Settlements', title: 'Supplier Bills', description: 'Settlement bills with deductions.', feature: 'settlements', Component: SupplierBillReport },

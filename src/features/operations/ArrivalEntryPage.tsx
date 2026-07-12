@@ -29,8 +29,14 @@ import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import { useGetItemsQuery, useGetSuppliersQuery } from '@/api/mastersApi';
-import { useCreateArrivalMutation, useGetArrivalsQuery } from '@/api/operationsApi';
+import {
+  useCreateArrivalMutation,
+  useGetArrivalsQuery,
+  useLazyGetArrivalQuery,
+  useUpdateArrivalMutation,
+} from '@/api/operationsApi';
 import SupplierFormDialog from '@/components/masters/SupplierFormDialog';
 import { formatCurrency } from '@/utils/format';
 import type { Arrival } from '@/types/domain';
@@ -50,6 +56,8 @@ export default function ArrivalEntryPage() {
   const { data: suppliers } = useGetSuppliersQuery();
   const { data: arrivals } = useGetArrivalsQuery();
   const [createArrival, { isLoading }] = useCreateArrivalMutation();
+  const [updateArrival, { isLoading: updating }] = useUpdateArrivalMutation();
+  const [fetchArrival] = useLazyGetArrivalQuery();
 
   const [date, setDate] = useState(today());
   const [supplierId, setSupplierId] = useState('');
@@ -60,6 +68,11 @@ export default function ArrivalEntryPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [detail, setDetail] = useState<Arrival | null>(null);
   const [newSupplierOpen, setNewSupplierOpen] = useState(false);
+  // Edit mode: when set, the form updates an existing arrival instead of creating.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editNumber, setEditNumber] = useState('');
+  const [linesLocked, setLinesLocked] = useState(false);
+  const [lockReason, setLockReason] = useState<string | null>(null);
 
   const activeItems = (items ?? []).filter((i) => i.isActive);
   const activeSuppliers = (suppliers ?? []).filter((s) => s.isActive);
@@ -77,27 +90,95 @@ export default function ArrivalEntryPage() {
 
   const validLines = lines.filter((l) => l.itemId && Number(l.weight) > 0 && Number(l.rate) > 0);
   const canSave = Boolean(supplierId) && validLines.length > 0;
+  const busy = isLoading || updating;
+
+  const resetForm = () => {
+    setEditingId(null);
+    setEditNumber('');
+    setLinesLocked(false);
+    setLockReason(null);
+    setDate(today());
+    setSupplierId('');
+    setVehicleNumber('');
+    setTransportCharges('');
+    setLines([emptyLine()]);
+    setError(null);
+  };
+
+  const enterEdit = async (id: string) => {
+    setDetail(null);
+    setError(null);
+    try {
+      const a = await fetchArrival(id).unwrap();
+      setEditingId(a.id);
+      setEditNumber(a.arrivalNumber);
+      setDate(a.date);
+      setSupplierId(a.supplierId);
+      setVehicleNumber(a.vehicleNumber ?? '');
+      setTransportCharges(a.transportCharges ? String(a.transportCharges) : '');
+      setLines(
+        a.lines.length
+          ? a.lines.map((l) => ({
+              itemId: l.itemId,
+              quantity: String(l.quantity),
+              weight: String(l.weight),
+              rate: String(l.rate),
+            }))
+          : [emptyLine()],
+      );
+      setLinesLocked(Boolean(a.linesLocked));
+      setLockReason(a.lockReason ?? null);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch {
+      setError('Could not load this arrival for editing.');
+    }
+  };
 
   const save = async () => {
     setError(null);
     try {
-      const arrival = await createArrival({
-        date,
-        supplierId,
-        vehicleNumber: vehicleNumber || undefined,
-        transportCharges: Number(transportCharges) || 0,
-        lines: validLines.map((l) => ({
-          itemId: l.itemId,
-          quantity: Number(l.quantity) || 0,
-          weight: Number(l.weight),
-          rate: Number(l.rate),
-        })),
-      }).unwrap();
-      setToast(`Arrival ${arrival.arrivalNumber} saved · ${arrival.lines.length} lot(s) created`);
-      setSupplierId('');
-      setVehicleNumber('');
-      setTransportCharges('');
-      setLines([emptyLine()]);
+      if (editingId) {
+        // Locked → header-only patch (no supplier / no lines); else full edit.
+        const body = linesLocked
+          ? {
+              date,
+              vehicleNumber: vehicleNumber || undefined,
+              transportCharges: Number(transportCharges) || 0,
+            }
+          : {
+              date,
+              supplierId,
+              vehicleNumber: vehicleNumber || undefined,
+              transportCharges: Number(transportCharges) || 0,
+              lines: validLines.map((l) => ({
+                itemId: l.itemId,
+                quantity: Number(l.quantity) || 0,
+                weight: Number(l.weight),
+                rate: Number(l.rate),
+              })),
+            };
+        const a = await updateArrival({ id: editingId, body }).unwrap();
+        setToast(`Arrival ${a.arrivalNumber} updated`);
+        resetForm();
+      } else {
+        const arrival = await createArrival({
+          date,
+          supplierId,
+          vehicleNumber: vehicleNumber || undefined,
+          transportCharges: Number(transportCharges) || 0,
+          lines: validLines.map((l) => ({
+            itemId: l.itemId,
+            quantity: Number(l.quantity) || 0,
+            weight: Number(l.weight),
+            rate: Number(l.rate),
+          })),
+        }).unwrap();
+        setToast(`Arrival ${arrival.arrivalNumber} saved · ${arrival.lines.length} lot(s) created`);
+        setSupplierId('');
+        setVehicleNumber('');
+        setTransportCharges('');
+        setLines([emptyLine()]);
+      }
     } catch (e) {
       const msg = (e as { data?: { message?: string | string[] } })?.data?.message;
       setError(Array.isArray(msg) ? msg.join(', ') : msg ?? 'Could not save arrival.');
@@ -110,7 +191,18 @@ export default function ArrivalEntryPage() {
     <Box sx={{ display: 'flex', alignItems: { lg: 'stretch' }, flexDirection: { xs: 'column', lg: 'row' } }}>
       {/* ---- Entry form (left) ---- */}
       <Stack spacing={2} sx={{ flex: { lg: '0 1 760px' }, width: '100%' }}>
-        <Typography variant="h6" sx={{ fontWeight: 800 }}>New Arrival Entry</Typography>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <Typography variant="h6" sx={{ fontWeight: 800, flexGrow: 1 }}>
+            {editingId ? `Edit Arrival ${editNumber}` : 'New Arrival Entry'}
+          </Typography>
+          {editingId && (
+            <Button size="small" color="inherit" onClick={resetForm}>Cancel edit</Button>
+          )}
+        </Stack>
+
+        {editingId && linesLocked && (
+          <Alert severity="warning">{lockReason ?? 'Items are locked; only header details can be edited.'}</Alert>
+        )}
 
         <Card>
           <CardContent>
@@ -121,7 +213,7 @@ export default function ArrivalEntryPage() {
               </Stack>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <Stack direction="row" spacing={1} alignItems="flex-start" sx={{ flex: 2 }}>
-                  <TextField select fullWidth label="Supplier" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+                  <TextField select fullWidth label="Supplier" value={supplierId} disabled={linesLocked} onChange={(e) => setSupplierId(e.target.value)}>
                     {activeSuppliers.length === 0 && <MenuItem disabled value="">No suppliers — add one with “New”</MenuItem>}
                     {activeSuppliers.map((s) => (
                       <MenuItem key={s.id} value={s.id}>{s.name} · {s.village ?? s.code}</MenuItem>
@@ -131,6 +223,7 @@ export default function ArrivalEntryPage() {
                     variant="outlined"
                     startIcon={<PersonAddAltRoundedIcon />}
                     onClick={() => setNewSupplierOpen(true)}
+                    disabled={linesLocked}
                     sx={{ flexShrink: 0, whiteSpace: 'nowrap', height: 56 }}
                   >
                     New
@@ -162,25 +255,25 @@ export default function ArrivalEntryPage() {
                     <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
                       {formatCurrency(lineAmount(line), false)}
                     </Typography>
-                    <IconButton size="small" onClick={() => removeLine(idx)} disabled={lines.length === 1}>
+                    <IconButton size="small" onClick={() => removeLine(idx)} disabled={lines.length === 1 || linesLocked}>
                       <DeleteOutlineRoundedIcon fontSize="small" />
                     </IconButton>
                   </Box>
-                  <TextField select label="Item" value={line.itemId} onChange={(e) => updateLine(idx, { itemId: e.target.value })} size="small">
+                  <TextField select label="Item" value={line.itemId} disabled={linesLocked} onChange={(e) => updateLine(idx, { itemId: e.target.value })} size="small">
                     {activeItems.map((it) => (
                       <MenuItem key={it.id} value={it.id}>{it.name}</MenuItem>
                     ))}
                   </TextField>
                   <Stack direction="row" spacing={1.5}>
-                    <TextField label="Bags/Qty" type="number" size="small" value={line.quantity} onChange={(e) => updateLine(idx, { quantity: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
-                    <TextField label="Weight (kg)" type="number" size="small" value={line.weight} onChange={(e) => updateLine(idx, { weight: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
-                    <TextField label="Rate ₹" type="number" size="small" value={line.rate} onChange={(e) => updateLine(idx, { rate: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
+                    <TextField label="Bags/Qty" type="number" size="small" value={line.quantity} disabled={linesLocked} onChange={(e) => updateLine(idx, { quantity: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
+                    <TextField label="Weight (kg)" type="number" size="small" value={line.weight} disabled={linesLocked} onChange={(e) => updateLine(idx, { weight: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
+                    <TextField label="Rate ₹" type="number" size="small" value={line.rate} disabled={linesLocked} onChange={(e) => updateLine(idx, { rate: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
                   </Stack>
                 </Stack>
               </CardContent>
             </Card>
           ))}
-          <Button startIcon={<AddRoundedIcon />} onClick={addLine} variant="outlined">
+          <Button startIcon={<AddRoundedIcon />} onClick={addLine} variant="outlined" disabled={linesLocked}>
             Add another item
           </Button>
         </Stack>
@@ -188,15 +281,19 @@ export default function ArrivalEntryPage() {
         {error && <Alert severity="error">{error}</Alert>}
 
         {/* Sticky summary footer */}
-        <Card sx={{ position: 'sticky', bottom: 8 }}>
+        {/* Raise above the fixed mobile bottom-nav (56px + safe area) so the Save
+            bar isn't overlapped; sits at 8px on desktop where there's no nav. */}
+        <Card sx={{ position: 'sticky', bottom: { xs: 'calc(56px + env(safe-area-inset-bottom) + 8px)', md: 8 }, zIndex: 2 }}>
           <CardContent sx={{ py: '12px !important' }}>
             <Stack direction="row" alignItems="center" spacing={2}>
               <Box sx={{ flexGrow: 1 }}>
                 <Typography variant="caption" color="text.secondary">Total arrival value</Typography>
                 <Typography variant="h6" sx={{ fontWeight: 800 }}>{formatCurrency(total, false)}</Typography>
               </Box>
-              <Button size="large" variant="contained" onClick={save} disabled={!canSave || isLoading}>
-                {isLoading ? 'Saving…' : 'Save Arrival'}
+              <Button size="large" variant="contained" onClick={save} disabled={!canSave || busy}>
+                {editingId
+                  ? updating ? 'Updating…' : 'Update Arrival'
+                  : isLoading ? 'Saving…' : 'Save Arrival'}
               </Button>
             </Stack>
             <Divider sx={{ my: 0 }} />
@@ -257,6 +354,9 @@ export default function ArrivalEntryPage() {
                   {detail.arrivalNumber} · {detail.date}{detail.vehicleNumber ? ` · ${detail.vehicleNumber}` : ''}
                 </Typography>
               </Box>
+              <Button size="small" variant="outlined" startIcon={<EditRoundedIcon />} onClick={() => enterEdit(detail.id)}>
+                Edit
+              </Button>
               <IconButton onClick={() => setDetail(null)} size="small"><CloseRoundedIcon /></IconButton>
             </DialogTitle>
             <DialogContent dividers>
@@ -283,22 +383,17 @@ export default function ArrivalEntryPage() {
                 </TableBody>
               </Table>
               <Stack spacing={0.5} sx={{ mt: 2 }}>
+                {/* Goods value is the arrival gross/total. Transport (bhada) is a
+                    separate cost shown for reference and is NOT added into it. */}
                 <Stack direction="row" justifyContent="space-between">
                   <Typography color="text.secondary">{detail.totalQuantity} bags · {detail.totalWeight} kg</Typography>
-                  <Typography sx={{ fontWeight: 700 }}>Goods {formatCurrency(detail.totalValue, false)}</Typography>
+                  <Typography sx={{ fontWeight: 800 }}>Goods {formatCurrency(detail.totalValue, false)}</Typography>
                 </Stack>
                 {detail.transportCharges > 0 && (
-                  <>
-                    <Stack direction="row" justifyContent="space-between">
-                      <Typography color="text.secondary">Transport (bhada)</Typography>
-                      <Typography sx={{ fontWeight: 700 }}>{formatCurrency(detail.transportCharges, false)}</Typography>
-                    </Stack>
-                    <Divider sx={{ my: 0.5 }} />
-                    <Stack direction="row" justifyContent="space-between">
-                      <Typography sx={{ fontWeight: 800 }}>Total cost</Typography>
-                      <Typography sx={{ fontWeight: 800 }}>{formatCurrency(detail.totalValue + detail.transportCharges, false)}</Typography>
-                    </Stack>
-                  </>
+                  <Stack direction="row" justifyContent="space-between">
+                    <Typography variant="body2" color="text.secondary">Transport (bhada) · paid separately</Typography>
+                    <Typography variant="body2" color="text.secondary">{formatCurrency(detail.transportCharges, false)}</Typography>
+                  </Stack>
                 )}
               </Stack>
             </DialogContent>

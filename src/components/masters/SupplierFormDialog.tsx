@@ -17,6 +17,7 @@ const blankForm = {
   village: '',
   mobile: '',
   commissionRate: 6,
+  openingBalance: 0,
   bankName: '',
   bankAccount: '',
   bankIfsc: '',
@@ -53,6 +54,7 @@ export default function SupplierFormDialog({ open, onClose, editing, initialName
             village: editing.village ?? '',
             mobile: editing.mobile ?? '',
             commissionRate: editing.commissionRate,
+            openingBalance: editing.openingBalance ?? 0,
             bankName: editing.bankName ?? '',
             bankAccount: editing.bankAccount ?? '',
             bankIfsc: editing.bankIfsc ?? '',
@@ -79,7 +81,16 @@ export default function SupplierFormDialog({ open, onClose, editing, initialName
             <TextField label="Village" value={form.village} onChange={(e) => setForm({ ...form, village: e.target.value })} />
             <TextField label="Mobile" value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} inputProps={{ inputMode: 'numeric' }} />
           </Stack>
-          <TextField label="Commission %" type="number" value={form.commissionRate} onChange={(e) => setForm({ ...form, commissionRate: Number(e.target.value) })} />
+          <Stack direction="row" spacing={2}>
+            <TextField label="Commission %" type="number" value={form.commissionRate} onChange={(e) => setForm({ ...form, commissionRate: Number(e.target.value) })} />
+            <TextField
+              label="Opening balance (₹)"
+              type="number"
+              value={form.openingBalance}
+              onChange={(e) => setForm({ ...form, openingBalance: Number(e.target.value) })}
+              helperText="Amount already owed to supplier"
+            />
+          </Stack>
           <Typography variant="caption" color="text.secondary">Bank details (optional)</Typography>
           <TextField label="Bank name" value={form.bankName} onChange={(e) => setForm({ ...form, bankName: e.target.value })} />
           <Stack direction="row" spacing={2}>

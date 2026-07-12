@@ -30,8 +30,9 @@ export function StockSummaryReport() {
 
 export function StockLotReport() {
   const { data: lots, isLoading } = useGetStockLotsQuery();
-  const { items, itemName, supplierName } = useLookups();
+  const { items, suppliers, itemName, supplierName } = useLookups();
   const [itemId, setItemId] = useState('');
+  const [supplierId, setSupplierId] = useState('');
   const [status, setStatus] = useState('');
 
   const columns: ReportColumn[] = [
@@ -42,23 +43,34 @@ export function StockLotReport() {
     { key: 'rate', label: 'Rate', currency: true },
     { key: 'qtyArr', label: 'Qty in', numeric: true, total: true },
     { key: 'qtyAvail', label: 'Qty avail.', numeric: true, total: true },
+    { key: 'wtArr', label: 'Weight in', numeric: true, total: true },
     { key: 'wtAvail', label: 'Weight avail.', numeric: true, total: true },
+    { key: 'value', label: 'Stock value', currency: true, total: true },
     { key: 'status', label: 'Status' },
   ];
 
   const rows: ReportRow[] = useMemo(() => (lots ?? [])
-    .filter((l) => (!itemId || l.itemId === itemId) && (!status || l.status === status))
+    .filter((l) =>
+      (!itemId || l.itemId === itemId) &&
+      (!supplierId || l.supplierId === supplierId) &&
+      (!status || l.status === status),
+    )
     .map((l) => ({
       lot: l.lotNumber, date: l.date, item: itemName(l.itemId), supplier: supplierName(l.supplierId),
-      rate: l.rate, qtyArr: l.qtyArrived, qtyAvail: l.qtyAvailable, wtAvail: l.weightAvailable, status: l.status,
-    })), [lots, itemId, status, itemName, supplierName]);
+      rate: l.rate, qtyArr: l.qtyArrived, qtyAvail: l.qtyAvailable,
+      wtArr: l.weightArrived, wtAvail: l.weightAvailable,
+      // Value of stock still on hand for this lot (available weight × cost rate).
+      value: Math.round(l.weightAvailable * l.rate * 100) / 100,
+      status: l.status,
+    })), [lots, itemId, supplierId, status, itemName, supplierName]);
 
   return (
     <ReportShell
-      title="Stock Lot Register" description="Lot-wise inventory with drawdown and status."
+      title="Stock Lot Register" description="Lot-wise inventory with drawdown, on-hand value and status."
       columns={columns} rows={rows} loading={isLoading}
       filters={<>
         <FilterSelect label="Item" value={itemId} onChange={setItemId} options={items.map((i) => ({ value: i.id, label: i.name }))} />
+        <FilterSelect label="Supplier" value={supplierId} onChange={setSupplierId} options={suppliers.map((s) => ({ value: s.id, label: s.name }))} />
         <FilterSelect label="Status" value={status} onChange={setStatus} options={[{ value: 'active', label: 'Active' }, { value: 'closed', label: 'Closed' }]} />
       </>}
     />
