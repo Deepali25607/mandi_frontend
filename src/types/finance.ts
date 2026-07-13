@@ -234,6 +234,12 @@ export interface ManagedUser {
   username: string;
   mobile?: string;
   role: string;
+  /** When set, the user is on an organization-defined custom role. */
+  customRoleId?: string | null;
+  /** Display name of the custom role, if any. */
+  customRoleName?: string | null;
+  /** Effective role label (custom role name, or built-in role label). */
+  roleLabel?: string;
   organizationId: string | null;
   branchId: string | null;
   isActive: boolean;

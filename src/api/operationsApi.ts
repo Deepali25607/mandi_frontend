@@ -44,6 +44,10 @@ export const operationsApi = apiSlice.injectEndpoints({
       query: ({ id, body }) => ({ url: `/arrivals/${id}`, method: 'PATCH', body }),
       invalidatesTags: ['Arrival', 'Inventory', 'Dashboard', 'Outstanding'],
     }),
+    deleteArrival: build.mutation<{ deleted: true }, string>({
+      query: (id) => ({ url: `/arrivals/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Arrival', 'Inventory', 'Dashboard', 'Outstanding'],
+    }),
 
     // ---- Sales ----
     getSales: build.query<Sale[], void>({
@@ -60,6 +64,10 @@ export const operationsApi = apiSlice.injectEndpoints({
     }),
     updateSale: build.mutation<Sale, { id: string; body: Partial<CreateSalePayload> }>({
       query: ({ id, body }) => ({ url: `/sales/${id}`, method: 'PATCH', body }),
+      invalidatesTags: ['Sale', 'Inventory', 'Dashboard', 'Outstanding', 'SupplierBill'],
+    }),
+    deleteSale: build.mutation<{ deleted: true }, string>({
+      query: (id) => ({ url: `/sales/${id}`, method: 'DELETE' }),
       invalidatesTags: ['Sale', 'Inventory', 'Dashboard', 'Outstanding', 'SupplierBill'],
     }),
 
@@ -94,11 +102,13 @@ export const {
   useLazyGetArrivalQuery,
   useCreateArrivalMutation,
   useUpdateArrivalMutation,
+  useDeleteArrivalMutation,
   useGetSalesQuery,
   useGetSaleQuery,
   useLazyGetSaleQuery,
   useCreateSaleMutation,
   useUpdateSaleMutation,
+  useDeleteSaleMutation,
   useGetChallansQuery,
   useCreateChallanMutation,
   useReportChallanMutation,

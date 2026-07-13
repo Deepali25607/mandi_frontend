@@ -52,6 +52,7 @@ export const apiSlice = createApi({
     'Organization',
     'Branch',
     'User',
+    'CustomRole',
     'Adjustment',
     'Challan',
     'Plan',

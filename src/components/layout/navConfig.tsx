@@ -101,16 +101,32 @@ export const NAV_ITEMS: NavItem[] = [
  * - Platform items (Super Admin console) are shown ONLY to super_admin.
  * - Super Admin sees ONLY platform items (full separation from operations).
  * - Org Admin can access EVERY org module/role (still subject to plan features).
- * - Other org roles require the item's role AND, if feature-gated, an active plan feature.
+ * - Custom-role users (grantedScreens provided) see only their granted screens
+ *   (Dashboard is always available), still subject to plan features.
+ * - Other built-in org roles require the item's role AND, if feature-gated, an
+ *   active plan feature.
  */
-export function canAccess(item: NavItem, role: Role, features: PlatformFeature[] = []): boolean {
+export function canAccess(
+  item: NavItem,
+  role: Role,
+  features: PlatformFeature[] = [],
+  grantedScreens?: string[],
+): boolean {
   if (item.platform) return role === 'super_admin';
   if (role === 'super_admin') return false;
   if (item.feature && !features.includes(item.feature)) return false;
+  if (grantedScreens) {
+    // Custom-role user: gate strictly by granted screens (Dashboard always on).
+    return item.path === '/dashboard' || grantedScreens.includes(item.path);
+  }
   if (role === 'org_admin') return true; // full operational access
   return item.roles.includes(role);
 }
 
-export function navItemsForRole(role: Role, features: PlatformFeature[] = []): NavItem[] {
-  return NAV_ITEMS.filter((item) => canAccess(item, role, features));
+export function navItemsForRole(
+  role: Role,
+  features: PlatformFeature[] = [],
+  grantedScreens?: string[],
+): NavItem[] {
+  return NAV_ITEMS.filter((item) => canAccess(item, role, features, grantedScreens));
 }

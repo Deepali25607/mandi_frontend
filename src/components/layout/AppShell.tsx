@@ -70,7 +70,7 @@ export default function AppShell() {
 
   if (!user) return null;
 
-  const items = navItemsForRole(user.role, user.features ?? []);
+  const items = navItemsForRole(user.role, user.features ?? [], user.grantedScreens);
   // Pick the longest matching path so nested routes (e.g. /platform/organizations)
   // resolve to their own item rather than the /platform parent.
   const current =

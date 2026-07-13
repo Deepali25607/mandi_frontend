@@ -8,6 +8,7 @@ import {
   CardContent,
   Chip,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
@@ -33,10 +34,12 @@ import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import { useGetItemsQuery, useGetSuppliersQuery } from '@/api/mastersApi';
 import {
   useCreateArrivalMutation,
+  useDeleteArrivalMutation,
   useGetArrivalsQuery,
   useLazyGetArrivalQuery,
   useUpdateArrivalMutation,
 } from '@/api/operationsApi';
+import { useAppSelector } from '@/store/hooks';
 import SupplierFormDialog from '@/components/masters/SupplierFormDialog';
 import { formatCurrency } from '@/utils/format';
 import type { Arrival } from '@/types/domain';
@@ -57,7 +60,10 @@ export default function ArrivalEntryPage() {
   const { data: arrivals } = useGetArrivalsQuery();
   const [createArrival, { isLoading }] = useCreateArrivalMutation();
   const [updateArrival, { isLoading: updating }] = useUpdateArrivalMutation();
+  const [deleteArrival, { isLoading: deleting }] = useDeleteArrivalMutation();
   const [fetchArrival] = useLazyGetArrivalQuery();
+  const isAdmin = useAppSelector((s) => s.auth.user?.role) === 'org_admin';
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; label: string } | null>(null);
 
   const [date, setDate] = useState(today());
   const [supplierId, setSupplierId] = useState('');
@@ -131,6 +137,21 @@ export default function ArrivalEntryPage() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch {
       setError('Could not load this arrival for editing.');
+    }
+  };
+
+  const doDelete = async () => {
+    if (!confirmDelete) return;
+    try {
+      await deleteArrival(confirmDelete.id).unwrap();
+      setToast(`Arrival ${confirmDelete.label} deleted`);
+      if (editingId === confirmDelete.id) resetForm();
+      setConfirmDelete(null);
+      setDetail(null);
+    } catch (e) {
+      const msg = (e as { data?: { message?: string | string[] } })?.data?.message;
+      setError(Array.isArray(msg) ? msg.join(', ') : msg ?? 'Could not delete arrival.');
+      setConfirmDelete(null);
     }
   };
 
@@ -357,6 +378,11 @@ export default function ArrivalEntryPage() {
               <Button size="small" variant="outlined" startIcon={<EditRoundedIcon />} onClick={() => enterEdit(detail.id)}>
                 Edit
               </Button>
+              {isAdmin && (
+                <IconButton size="small" color="error" onClick={() => setConfirmDelete({ id: detail.id, label: detail.arrivalNumber })}>
+                  <DeleteOutlineRoundedIcon fontSize="small" />
+                </IconButton>
+              )}
               <IconButton onClick={() => setDetail(null)} size="small"><CloseRoundedIcon /></IconButton>
             </DialogTitle>
             <DialogContent dividers>
@@ -399,6 +425,21 @@ export default function ArrivalEntryPage() {
             </DialogContent>
           </>
         )}
+      </Dialog>
+
+      <Dialog open={Boolean(confirmDelete)} onClose={() => setConfirmDelete(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800 }}>Delete arrival {confirmDelete?.label}?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            This permanently deletes the arrival and its stock lots. Only allowed while none of its stock has been sold. This cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setConfirmDelete(null)}>Cancel</Button>
+          <Button variant="contained" color="error" onClick={doDelete} disabled={deleting}>
+            {deleting ? 'Deleting…' : 'Delete'}
+          </Button>
+        </DialogActions>
       </Dialog>
 
       <SupplierFormDialog

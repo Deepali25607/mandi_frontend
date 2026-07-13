@@ -38,12 +38,36 @@ export interface AuthUser {
   mobile?: string;
   role: Role;
   roleLabel: string;
+  /** Granted screen paths — present only when the user is on a custom role. */
+  grantedScreens?: string[];
+  /** The custom role's name, if the user is on a custom role. */
+  customRoleName?: string | null;
   organizationId: string | null;
   branchId: string | null;
   mustChangePassword: boolean;
   /** Feature keys enabled by the org's plan (empty for Super Admin). */
   features?: PlatformFeature[];
   subscription?: SubscriptionSummary;
+}
+
+/** A screen an Org Admin can grant to a custom role (from GET /custom-roles/screens). */
+export interface AssignableScreen {
+  path: string;
+  label: string;
+  section: 'Operations' | 'Masters' | 'Accounts' | 'Reports';
+  feature: PlatformFeature | null;
+  /** Always granted; shown as a locked/checked row in the editor. */
+  always: boolean;
+}
+
+/** An organization-defined custom role. */
+export interface CustomRole {
+  id: string;
+  organizationId: string;
+  name: string;
+  description?: string;
+  screens: string[];
+  isActive: boolean;
 }
 
 export interface LoginResponse {

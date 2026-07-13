@@ -6,6 +6,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  ListSubheader,
   MenuItem,
   Stack,
   TextField,
@@ -15,6 +16,7 @@ import LockResetRoundedIcon from '@mui/icons-material/LockResetRounded';
 import {
   useCreateUserMutation,
   useGetBranchesQuery,
+  useGetCustomRolesQuery,
   useGetUsersQuery,
   useResetUserPasswordMutation,
   useUpdateUserMutation,
@@ -39,6 +41,7 @@ export default function UsersPage() {
   const [search, setSearch] = useState('');
   const { data: users, isLoading } = useGetUsersQuery();
   const { data: branches } = useGetBranchesQuery();
+  const { data: customRoles } = useGetCustomRolesQuery();
   const [createUser, { isLoading: creating }] = useCreateUserMutation();
   const [updateUser, { isLoading: updating }] = useUpdateUserMutation();
   const [resetPassword, { isLoading: resetting }] = useResetUserPasswordMutation();
@@ -56,16 +59,26 @@ export default function UsersPage() {
     !search || u.name.toLowerCase().includes(search.toLowerCase()) || u.username.toLowerCase().includes(search.toLowerCase()),
   );
 
+  // The role select value is either a built-in role slug or `custom:<id>`.
   const openAdd = () => { setEditing(null); setError(null); setForm({ name: '', username: '', password: '', role: 'sales_operator', branchId: branches?.[0]?.id ?? '', mobile: '' }); setOpen(true); };
-  const openEdit = (u: ManagedUser) => { setEditing(u); setError(null); setForm({ name: u.name, username: u.username, password: '', role: u.role, branchId: u.branchId ?? '', mobile: u.mobile ?? '' }); setOpen(true); };
+  const openEdit = (u: ManagedUser) => { setEditing(u); setError(null); setForm({ name: u.name, username: u.username, password: '', role: u.customRoleId ? `custom:${u.customRoleId}` : u.role, branchId: u.branchId ?? '', mobile: u.mobile ?? '' }); setOpen(true); };
+
+  // Split the combined select value into a role assignment payload.
+  const roleAssignment = (value: string) =>
+    value.startsWith('custom:')
+      ? { customRoleId: value.slice('custom:'.length) }
+      : { role: value, customRoleId: null };
 
   const save = async () => {
     setError(null);
     try {
+      const assignment = roleAssignment(form.role);
       if (editing) {
-        await updateUser({ id: editing.id, body: { name: form.name, role: form.role, branchId: form.branchId || null, mobile: form.mobile || undefined } }).unwrap();
+        await updateUser({ id: editing.id, body: { name: form.name, ...assignment, branchId: form.branchId || null, mobile: form.mobile || undefined } }).unwrap();
       } else {
-        await createUser({ name: form.name, username: form.username, password: form.password, role: form.role, branchId: form.branchId || undefined, mobile: form.mobile || undefined }).unwrap();
+        // On create, only send the chosen assignment (custom OR built-in).
+        const createAssignment = form.role.startsWith('custom:') ? { customRoleId: form.role.slice('custom:'.length) } : { role: form.role };
+        await createUser({ name: form.name, username: form.username, password: form.password, ...createAssignment, branchId: form.branchId || undefined, mobile: form.mobile || undefined }).unwrap();
       }
       setOpen(false);
     } catch (e) {
@@ -101,7 +114,7 @@ export default function UsersPage() {
           <EntityCard
             avatarText={u.name.charAt(0)}
             title={u.name}
-            subtitle={`@${u.username} · ${roleLabel(u.role)}`}
+            subtitle={`@${u.username} · ${u.roleLabel ?? u.customRoleName ?? roleLabel(u.role)}`}
             inactive={!u.isActive}
             chips={u.isActive ? [{ label: 'Active', color: 'success' }] : [{ label: 'Disabled', color: 'default' }]}
             onEdit={() => openEdit(u)}
@@ -133,9 +146,20 @@ export default function UsersPage() {
             )}
             <TextField
               select label="Role" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
-              helperText={ORG_ROLE_INFO.find((r) => r.value === form.role)?.summary ?? 'See Roles & Access for details'}
+              helperText={
+                form.role.startsWith('custom:')
+                  ? 'Custom role — its screens are defined under Roles & Access'
+                  : ORG_ROLE_INFO.find((r) => r.value === form.role)?.summary ?? 'See Roles & Access for details'
+              }
             >
+              <ListSubheader>Built-in roles</ListSubheader>
               {ROLES.map((r) => <MenuItem key={r.value} value={r.value}>{r.label}</MenuItem>)}
+              {(customRoles ?? []).length > 0 && <ListSubheader>Custom roles</ListSubheader>}
+              {(customRoles ?? []).map((r) => (
+                <MenuItem key={r.id} value={`custom:${r.id}`} disabled={!r.isActive}>
+                  {r.name}{!r.isActive ? ' (disabled)' : ''}
+                </MenuItem>
+              ))}
             </TextField>
             <TextField select label="Branch" value={form.branchId} onChange={(e) => setForm({ ...form, branchId: e.target.value })}>
               <MenuItem value="">— None —</MenuItem>

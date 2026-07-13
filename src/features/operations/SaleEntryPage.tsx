@@ -6,6 +6,10 @@ import {
   Card,
   CardContent,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
   MenuItem,
   Snackbar,
@@ -23,12 +27,14 @@ import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import { useGetCustomersQuery, useGetItemsQuery } from '@/api/mastersApi';
 import {
   useCreateSaleMutation,
+  useDeleteSaleMutation,
   useGetSalesQuery,
   useGetStockLotsQuery,
   useLazyGetSaleQuery,
   useUpdateSaleMutation,
 } from '@/api/operationsApi';
 import { useGetCustomerOutstandingQuery } from '@/api/financeApi';
+import { useAppSelector } from '@/store/hooks';
 import CustomerFormDialog from '@/components/masters/CustomerFormDialog';
 import { formatCurrency } from '@/utils/format';
 import type { PaymentMode, StockLot } from '@/types/domain';
@@ -93,7 +99,10 @@ export default function SaleEntryPage() {
   const { data: sales } = useGetSalesQuery();
   const [createSale, { isLoading }] = useCreateSaleMutation();
   const [updateSale, { isLoading: updating }] = useUpdateSaleMutation();
+  const [deleteSale, { isLoading: deleting }] = useDeleteSaleMutation();
   const [fetchSale] = useLazyGetSaleQuery();
+  const isAdmin = useAppSelector((s) => s.auth.user?.role) === 'org_admin';
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; label: string } | null>(null);
 
   const pendingMap = useMemo(
     () => new Map((outstanding ?? []).map((r) => [r.customerId, r.balance])),
@@ -204,6 +213,20 @@ export default function SaleEntryPage() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch {
       setError('Could not load this sale for editing.');
+    }
+  };
+
+  const doDelete = async () => {
+    if (!confirmDelete) return;
+    try {
+      await deleteSale(confirmDelete.id).unwrap();
+      setToast(`Sale ${confirmDelete.label} deleted`);
+      if (editingId === confirmDelete.id) resetForm();
+      setConfirmDelete(null);
+    } catch (e) {
+      const msg = (e as { data?: { message?: string | string[] } })?.data?.message;
+      setError(Array.isArray(msg) ? msg.join(', ') : msg ?? 'Could not delete sale.');
+      setConfirmDelete(null);
     }
   };
 
@@ -441,12 +464,32 @@ export default function SaleEntryPage() {
                   >
                     Edit
                   </Button>
+                  {isAdmin && (
+                    <IconButton size="small" color="error" onClick={() => setConfirmDelete({ id: s.id, label: s.saleNumber })}>
+                      <DeleteOutlineRoundedIcon fontSize="small" />
+                    </IconButton>
+                  )}
                 </Stack>
               ))}
             </Stack>
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={Boolean(confirmDelete)} onClose={() => setConfirmDelete(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800 }}>Delete sale {confirmDelete?.label}?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            This permanently deletes the sale bill and returns its stock to the lots it was sold from. This cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setConfirmDelete(null)}>Cancel</Button>
+          <Button variant="contained" color="error" onClick={doDelete} disabled={deleting}>
+            {deleting ? 'Deleting…' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <CustomerFormDialog
         open={newCustomerOpen}
