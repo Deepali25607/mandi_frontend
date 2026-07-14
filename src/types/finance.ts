@@ -32,7 +32,22 @@ export interface BankAccountBalance {
   accountNumber?: string;
   opening: number;
   received: number;
+  /** Net of internal cash↔bank transfers (deposits − withdrawals). */
+  transferNet: number;
   balance: number;
+}
+
+/** Direction of an internal cash ↔ bank fund transfer. */
+export type TransferDirection = 'cash_to_bank' | 'bank_to_cash';
+
+export interface CashTransfer {
+  id: string;
+  transferNumber: string;
+  date: string;
+  direction: TransferDirection;
+  bankAccountId: string;
+  amount: number;
+  notes?: string;
 }
 
 export interface BankBalancesResult {

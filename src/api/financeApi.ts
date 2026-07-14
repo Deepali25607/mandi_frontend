@@ -7,6 +7,7 @@ import type {
   BankAccount,
   BankBalancesResult,
   CashBookResult,
+  CashTransfer,
   Collection,
   CrateBalanceRow,
   CrateTransaction,
@@ -56,7 +57,17 @@ export const financeApi = apiSlice.injectEndpoints({
     }),
     getBankBalances: build.query<BankBalancesResult, void>({
       query: () => '/accounting/bank-balances',
-      providesTags: ['BankAccount', 'Collection'],
+      providesTags: ['BankAccount', 'Collection', 'CashTransfer'],
+    }),
+
+    // ---- Cash ↔ Bank transfers ----
+    getCashTransfers: build.query<CashTransfer[], void>({
+      query: () => '/cash-transfers',
+      providesTags: ['CashTransfer'],
+    }),
+    createCashTransfer: build.mutation<CashTransfer, { date: string; direction: 'cash_to_bank' | 'bank_to_cash'; bankAccountId: string; amount: number; notes?: string }>({
+      query: (body) => ({ url: '/cash-transfers', method: 'POST', body }),
+      invalidatesTags: ['CashTransfer', 'BankAccount'],
     }),
 
     // ---- Expenses ----
@@ -172,6 +183,8 @@ export const {
   useUpdateBankAccountMutation,
   useDeleteBankAccountMutation,
   useGetBankBalancesQuery,
+  useGetCashTransfersQuery,
+  useCreateCashTransferMutation,
   useGetExpensesQuery,
   useGetExpenseCategoriesQuery,
   useCreateExpenseMutation,

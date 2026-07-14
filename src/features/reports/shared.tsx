@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   alpha,
@@ -7,8 +7,11 @@ import {
   Button,
   Card,
   CardContent,
+  Divider,
   IconButton,
   LinearProgress,
+  Menu,
+  MenuItem,
   Paper,
   Stack,
   Table,
@@ -23,6 +26,8 @@ import {
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import PrintRoundedIcon from '@mui/icons-material/PrintRounded';
+import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import { formatCurrency, formatNumber } from '@/utils/format';
 import { printHtml } from '@/utils/share';
 
@@ -61,25 +66,115 @@ const isRight = (c: ReportColumn) => Boolean(c.numeric || c.currency);
 const display = (c: ReportColumn, v: string | number) =>
   c.currency ? formatCurrency(Number(v) || 0, false) : c.numeric ? formatNumber(Number(v) || 0) : String(v ?? '');
 
-/** Date-range filter (two native date inputs) used by most registers. */
+// ---- Date-range presets (Today, This Month, Fiscal Year, …) ----
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** Local (not UTC) YYYY-MM-DD so ranges match the user's calendar day. */
+const isoLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+/** Pretty label for a preset's resolved date, e.g. "15 Jul 2025". */
+const prettyDate = (iso: string) => {
+  const [y, m, d] = iso.split('-');
+  return `${Number(d)} ${MONTHS[Number(m) - 1]} ${y}`;
+};
+
+export interface DateRangePreset { key: string; label: string; from: string; to: string; }
+
+/** Build the standard preset ranges relative to today (Indian fiscal year Apr–Mar). */
+export function buildDateRangePresets(now = new Date()): DateRangePreset[] {
+  const y = now.getFullYear();
+  const mo = now.getMonth();
+  const today = new Date(y, mo, now.getDate());
+  const range = (a: Date, b: Date): Pick<DateRangePreset, 'from' | 'to'> => ({ from: isoLocal(a), to: isoLocal(b) });
+
+  // Week starts Monday.
+  const monday = addDays(today, -((today.getDay() + 6) % 7));
+  // Quarter bounds.
+  const qStart = new Date(y, Math.floor(mo / 3) * 3, 1);
+  const prevQEnd = addDays(qStart, -1);
+  const prevQStart = new Date(prevQEnd.getFullYear(), Math.floor(prevQEnd.getMonth() / 3) * 3, 1);
+  // Indian fiscal year: Apr 1 – Mar 31.
+  const fyStartYear = mo >= 3 ? y : y - 1;
+  const fyStart = new Date(fyStartYear, 3, 1);
+  const fyEnd = new Date(fyStartYear + 1, 2, 31);
+  const prevFyStart = new Date(fyStartYear - 1, 3, 1);
+  const prevFyEnd = new Date(fyStartYear, 2, 31);
+
+  return [
+    { key: 'today', label: 'Today', ...range(today, today) },
+    { key: 'yesterday', label: 'Yesterday', ...range(addDays(today, -1), addDays(today, -1)) },
+    { key: 'this_week', label: 'This Week', ...range(monday, today) },
+    { key: 'last_week', label: 'Last Week', ...range(addDays(monday, -7), addDays(monday, -1)) },
+    { key: 'last_7', label: 'Last 7 Days', ...range(addDays(today, -6), today) },
+    { key: 'this_month', label: 'This Month', ...range(new Date(y, mo, 1), today) },
+    { key: 'prev_month', label: 'Previous Month', ...range(new Date(y, mo - 1, 1), new Date(y, mo, 0)) },
+    { key: 'last_30', label: 'Last 30 Days', ...range(addDays(today, -29), today) },
+    { key: 'this_quarter', label: 'This Quarter', ...range(qStart, today) },
+    { key: 'prev_quarter', label: 'Previous Quarter', ...range(prevQStart, prevQEnd) },
+    { key: 'this_fy', label: 'Current Fiscal Year', ...range(fyStart, fyEnd) },
+    { key: 'prev_fy', label: 'Previous Fiscal Year', ...range(prevFyStart, prevFyEnd) },
+    { key: 'last_365', label: 'Last 365 Days', ...range(addDays(today, -364), today) },
+  ];
+}
+
+/**
+ * Date-range filter shown as a preset dropdown (Today, This Month, Fiscal Year,
+ * Last 365 Days, …) with a Custom option that reveals two date inputs. Emits the
+ * resolved from/to so every report keeps working unchanged.
+ */
 export function DateRangeFilter({
   from, to, onFrom, onTo,
 }: { from: string; to: string; onFrom: (v: string) => void; onTo: (v: string) => void }) {
+  const presets = useMemo(() => buildDateRangePresets(), []);
+  const [anchor, setAnchor] = useState<null | HTMLElement>(null);
+  const [customMode, setCustomMode] = useState(false);
+
+  const active = presets.find((p) => p.from === from && p.to === to);
+  const isCustom = customMode || !active;
+  const label = isCustom ? 'Custom' : active!.label;
+
+  const pick = (p: DateRangePreset) => { onFrom(p.from); onTo(p.to); setCustomMode(false); setAnchor(null); };
+
   return (
     <>
-      <TextField size="small" type="date" label="From" value={from} onChange={(e) => onFrom(e.target.value)} InputLabelProps={{ shrink: true }} />
-      <TextField size="small" type="date" label="To" value={to} onChange={(e) => onTo(e.target.value)} InputLabelProps={{ shrink: true }} />
+      <Button
+        size="small" variant="outlined" color="inherit"
+        startIcon={<CalendarMonthRoundedIcon />} endIcon={<ExpandMoreRoundedIcon />}
+        onClick={(e) => setAnchor(e.currentTarget)}
+        sx={{ textTransform: 'none', fontWeight: 700, borderColor: 'divider', minWidth: 168, justifyContent: 'space-between' }}
+      >
+        {label}
+      </Button>
+      <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)} slotProps={{ paper: { sx: { maxHeight: 380 } } }}>
+        {presets.map((p) => (
+          <MenuItem key={p.key} selected={!isCustom && active?.key === p.key} onClick={() => pick(p)} sx={{ gap: 3, justifyContent: 'space-between' }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>{p.label}</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+              {prettyDate(p.from)} – {prettyDate(p.to)}
+            </Typography>
+          </MenuItem>
+        ))}
+        <Divider />
+        <MenuItem selected={isCustom} onClick={() => { setCustomMode(true); setAnchor(null); }}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>Custom…</Typography>
+        </MenuItem>
+      </Menu>
+      {isCustom && (
+        <>
+          <TextField size="small" type="date" label="From" value={from} onChange={(e) => onFrom(e.target.value)} InputLabelProps={{ shrink: true }} />
+          <TextField size="small" type="date" label="To" value={to} onChange={(e) => onTo(e.target.value)} InputLabelProps={{ shrink: true }} />
+        </>
+      )}
     </>
   );
 }
 
-/** Default range = first day of the current month → today. */
+/** Default range = first day of the current month → today (matches the "This Month" preset). */
 export function useMonthRange() {
   const now = new Date();
   const first = new Date(now.getFullYear(), now.getMonth(), 1);
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  const [from, setFrom] = useState(iso(first));
-  const [to, setTo] = useState(iso(now));
+  const [from, setFrom] = useState(isoLocal(first));
+  const [to, setTo] = useState(isoLocal(now));
   return { from, to, setFrom, setTo };
 }
 

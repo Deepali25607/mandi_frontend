@@ -45,6 +45,7 @@ export const apiSlice = createApi({
     'Sale',
     'Collection',
     'BankAccount',
+    'CashTransfer',
     'SupplierBill',
     'SupplierPayment',
     'Expense',
