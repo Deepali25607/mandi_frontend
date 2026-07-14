@@ -28,6 +28,7 @@ import NorthEastRoundedIcon from '@mui/icons-material/NorthEastRounded';
 import PaymentsRoundedIcon from '@mui/icons-material/PaymentsRounded';
 import AccountBalanceRoundedIcon from '@mui/icons-material/AccountBalanceRounded';
 import {
+  useGetBankBalancesQuery,
   useGetCashBookQuery,
   useGetCustomerLedgerQuery,
   useGetOutstandingSummaryQuery,
@@ -60,7 +61,7 @@ export default function AccountingPage() {
           onClick={() => { setTab(0); setLedgerParty('supplier'); }}
         />
         <Kpi
-          icon={PaymentsRoundedIcon} label="Cash balance" value={formatCurrency(cash?.balance ?? 0, false)}
+          icon={PaymentsRoundedIcon} label="Cash in Hand" value={formatCurrency(cash?.balance ?? 0, false)}
           active={tab === 1 && cashKind === 'cash'}
           onClick={() => { setTab(1); setCashKind('cash'); }}
         />
@@ -170,6 +171,7 @@ function LedgerTable({ rows, closing }: { rows: { date: string; voucher: string;
 
 function CashBank({ kind, onKind }: { kind: 'cash' | 'bank'; onKind: (v: 'cash' | 'bank') => void }) {
   const { data } = useGetCashBookQuery(kind);
+  const { data: bankBal } = useGetBankBalancesQuery(undefined, { skip: kind !== 'bank' });
   const rows = data?.rows ?? [];
   const totalIn = rows.reduce((s, r) => s + r.inflow, 0);
   const totalOut = rows.reduce((s, r) => s + r.outflow, 0);
@@ -184,6 +186,42 @@ function CashBank({ kind, onKind }: { kind: 'cash' | 'bank'; onKind: (v: 'cash' 
         <Box sx={{ flexGrow: 1 }} />
         <Chip color="success" label={`Closing balance: ${formatCurrency(data?.balance ?? 0, false)}`} sx={{ fontWeight: 700 }} />
       </Stack>
+
+      {/* Per-account bank reconciliation */}
+      {kind === 'bank' && bankBal && bankBal.accounts.length > 0 && (
+        <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1.5 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>Bank accounts</Typography>
+          <Box sx={{ overflowX: 'auto' }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow><Th>Account</Th><Th right>Opening</Th><Th right>Received (net)</Th><Th right>Balance</Th></TableRow>
+              </TableHead>
+              <TableBody>
+                {bankBal.accounts.map((a) => (
+                  <TableRow key={a.id} hover>
+                    <TableCell sx={{ fontWeight: 600 }}>{a.name}{a.bankName ? <Typography component="span" variant="caption" color="text.secondary"> · {a.bankName}</Typography> : ''}</TableCell>
+                    <TableCell align="right">{formatCurrency(a.opening, false)}</TableCell>
+                    <TableCell align="right" sx={{ color: a.received ? 'success.main' : 'text.disabled' }}>{a.received ? formatCurrency(a.received, false) : '—'}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 700 }}>{formatCurrency(a.balance, false)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Box>
+          <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1 }} useFlexGap>
+            {bankBal.unallocatedReceived > 0 && <Chip size="small" variant="outlined" label={`Untagged receipts: ${formatCurrency(bankBal.unallocatedReceived, false)}`} />}
+            {bankBal.bankOutflow > 0 && <Chip size="small" variant="outlined" color="error" label={`Bank payments/expenses: ${formatCurrency(bankBal.bankOutflow, false)}`} />}
+            {bankBal.bankCharges > 0 && <Chip size="small" variant="outlined" label={`Bank charges: ${formatCurrency(bankBal.bankCharges, false)}`} />}
+            <Box sx={{ flexGrow: 1 }} />
+            <Chip size="small" color="primary" label={`Net bank position: ${formatCurrency(bankBal.totalBalance, false)}`} sx={{ fontWeight: 700 }} />
+          </Stack>
+          {bankBal.bankOutflow > 0 && (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+              Bank-mode supplier payments and expenses aren't tied to a specific account, so they reduce the overall net position.
+            </Typography>
+          )}
+        </Box>
+      )}
 
       {rows.length === 0 ? (
         <EmptyState text="No entries for this book yet." />

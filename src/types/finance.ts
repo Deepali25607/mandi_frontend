@@ -7,8 +7,40 @@ export interface Collection {
   customerId: string;
   amount: number;
   paymentMode: PaymentMode;
+  /** Bank account the money landed in (bank-linked modes only). */
+  bankAccountId?: string | null;
+  /** Bank/transaction charges deducted at source; net to bank = amount − charges. */
+  charges?: number;
   reference?: string;
   notes?: string;
+}
+
+/** A bank account an org keeps money in. */
+export interface BankAccount {
+  id: string;
+  name: string;
+  bankName?: string;
+  accountNumber?: string;
+  openingBalance: number;
+  isActive: boolean;
+}
+
+export interface BankAccountBalance {
+  id: string;
+  name: string;
+  bankName?: string;
+  accountNumber?: string;
+  opening: number;
+  received: number;
+  balance: number;
+}
+
+export interface BankBalancesResult {
+  accounts: BankAccountBalance[];
+  unallocatedReceived: number;
+  bankOutflow: number;
+  bankCharges: number;
+  totalBalance: number;
 }
 
 export interface SupplierBill {

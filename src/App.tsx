@@ -21,6 +21,7 @@ import CollectionsPage from '@/features/finance/CollectionsPage';
 import AdjustmentsPage from '@/features/finance/AdjustmentsPage';
 import ExpensesPage from '@/features/finance/ExpensesPage';
 import OutstandingPage from '@/features/finance/OutstandingPage';
+import BankAccountsPage from '@/features/finance/BankAccountsPage';
 import BillingPage from '@/features/finance/BillingPage';
 import SettlementsPage from '@/features/finance/SettlementsPage';
 import AccountingPage from '@/features/finance/AccountingPage';
@@ -54,6 +55,7 @@ const IMPLEMENTED = new Set([
   '/billing',
   '/settlements',
   '/outstanding',
+  '/bank-accounts',
   '/expenses',
   '/accounting',
   '/crates',
@@ -123,6 +125,7 @@ export default function App() {
         <Route path="/billing" element={<BillingPage />} />
         <Route path="/settlements" element={<SettlementsPage />} />
         <Route path="/outstanding" element={<OutstandingPage />} />
+        <Route path="/bank-accounts" element={<BankAccountsPage />} />
         <Route path="/expenses" element={<ExpensesPage />} />
         <Route path="/accounting" element={<AccountingPage />} />
         <Route path="/crates" element={<CratesPage />} />

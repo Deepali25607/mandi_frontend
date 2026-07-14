@@ -23,7 +23,7 @@ import PaymentsRoundedIcon from '@mui/icons-material/PaymentsRounded';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import { useCreateCollectionMutation, useGetCollectionsQuery, useGetCustomerOutstandingQuery } from '@/api/financeApi';
+import { useCreateCollectionMutation, useGetBankAccountsQuery, useGetCollectionsQuery, useGetCustomerOutstandingQuery } from '@/api/financeApi';
 import { useLookups } from '@/utils/useLookups';
 import { formatCurrency } from '@/utils/format';
 import type { PaymentMode } from '@/types/domain';
@@ -32,15 +32,18 @@ import type { Collection } from '@/types/finance';
 const PAYMENT_MODES: { value: PaymentMode; label: string }[] = [
   { value: 'cash', label: 'Cash' },
   { value: 'upi', label: 'UPI' },
-  { value: 'bank', label: 'Bank' },
+  { value: 'bank', label: 'Bank Transfer' },
   { value: 'credit', label: 'Credit/Adjustment' },
 ];
+/** Modes whose money lands in a bank account rather than Cash in Hand. */
+const isBankLinked = (m: PaymentMode) => m === 'upi' || m === 'bank';
 const today = () => new Date().toISOString().slice(0, 10);
 
 export default function CollectionsPage() {
   const { customers, customerName } = useLookups();
   const { data: collections } = useGetCollectionsQuery();
   const { data: outstanding } = useGetCustomerOutstandingQuery();
+  const { data: bankAccounts } = useGetBankAccountsQuery();
   const [createCollection, { isLoading: saving }] = useCreateCollectionMutation();
 
   // Pending receivable per customer (opening + sales − collected).
@@ -54,12 +57,21 @@ export default function CollectionsPage() {
   const [customerId, setCustomerId] = useState('');
   const [amount, setAmount] = useState('');
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
+  const [bankAccountId, setBankAccountId] = useState('');
+  const [charges, setCharges] = useState('');
   const [reference, setReference] = useState('');
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<Collection | null>(null);
 
-  const canSave = customerId && Number(amount) > 0;
+  const bankLinked = isBankLinked(paymentMode);
+  const activeBanks = useMemo(() => (bankAccounts ?? []).filter((b) => b.isActive), [bankAccounts]);
+  const chargeNum = Number(charges) || 0;
+  const netToBank = Math.max(0, (Number(amount) || 0) - chargeNum);
+  const bankName = (id?: string | null) => (bankAccounts ?? []).find((b) => b.id === id)?.name;
+
+  const canSave =
+    Boolean(customerId) && Number(amount) > 0 && (!bankLinked || chargeNum < Number(amount));
   const selectedPending = customerId ? pendingFor(customerId) : 0;
   const recent = useMemo(() => (collections ?? []).slice(0, 20), [collections]);
 
@@ -67,10 +79,14 @@ export default function CollectionsPage() {
     setError(null);
     try {
       const res = await createCollection({
-        date, customerId, amount: Number(amount), paymentMode, reference: reference || undefined,
+        date, customerId, amount: Number(amount), paymentMode,
+        bankAccountId: bankLinked ? (bankAccountId || undefined) : undefined,
+        charges: bankLinked ? chargeNum : undefined,
+        reference: reference || undefined,
       }).unwrap();
       setToast(`${res.collectionNumber}: ${formatCurrency(res.amount, false)} received`);
       setAmount('');
+      setCharges('');
       setReference('');
     } catch (e) {
       const msg = (e as { data?: { message?: string | string[] } })?.data?.message;
@@ -129,6 +145,31 @@ export default function CollectionsPage() {
                   {PAYMENT_MODES.map((p) => <MenuItem key={p.value} value={p.value}>{p.label}</MenuItem>)}
                 </TextField>
               </Stack>
+
+              {/* Bank routing — only for bank-linked modes (UPI / Bank Transfer). */}
+              {bankLinked && (
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                  <TextField
+                    select label="Bank account" value={bankAccountId}
+                    onChange={(e) => setBankAccountId(e.target.value)}
+                    helperText={activeBanks.length === 0 ? 'No bank accounts yet — add one under Bank Accounts' : 'Where the money lands'}
+                    sx={{ flex: 1 }}
+                  >
+                    <MenuItem value="">— Not specified —</MenuItem>
+                    {activeBanks.map((b) => (
+                      <MenuItem key={b.id} value={b.id}>{b.name}{b.bankName ? ` · ${b.bankName}` : ''}</MenuItem>
+                    ))}
+                  </TextField>
+                  <TextField
+                    label="Bank charges ₹" type="number" value={charges}
+                    onChange={(e) => setCharges(e.target.value)} inputProps={{ inputMode: 'decimal' }}
+                    error={Boolean(amount) && chargeNum >= Number(amount)}
+                    helperText={chargeNum > 0 ? `Net to bank: ${formatCurrency(netToBank, false)}` : 'Fees deducted at source (optional)'}
+                    sx={{ flex: 1 }}
+                  />
+                </Stack>
+              )}
+
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <TextField label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} InputLabelProps={{ shrink: true }} />
                 <TextField label="Reference (optional)" value={reference} onChange={(e) => setReference(e.target.value)} />
@@ -201,6 +242,9 @@ export default function CollectionsPage() {
               <Stack spacing={1.25}>
                 <Row label="Amount received" value={formatCurrency(detail.amount, false)} strong />
                 <Row label="Payment mode" value={detail.paymentMode} />
+                {detail.bankAccountId && <Row label="Bank account" value={bankName(detail.bankAccountId) ?? '—'} />}
+                {(detail.charges ?? 0) > 0 && <Row label="Bank charges" value={formatCurrency(detail.charges ?? 0, false)} />}
+                {(detail.charges ?? 0) > 0 && <Row label="Net to bank" value={formatCurrency(detail.amount - (detail.charges ?? 0), false)} />}
                 {detail.reference && <Row label="Reference" value={detail.reference} />}
                 {detail.notes && <Row label="Notes" value={detail.notes} />}
                 <Divider />

@@ -15,6 +15,7 @@ import {
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import ArchiveRoundedIcon from '@mui/icons-material/ArchiveRounded';
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 
 export interface EntityChip {
   label: string;
@@ -30,6 +31,7 @@ interface EntityCardProps {
   inactive?: boolean;
   onEdit?: () => void;
   onArchive?: () => void;
+  onDelete?: () => void;
 }
 
 export default function EntityCard({
@@ -41,9 +43,10 @@ export default function EntityCard({
   inactive,
   onEdit,
   onArchive,
+  onDelete,
 }: EntityCardProps) {
   const [anchor, setAnchor] = useState<null | HTMLElement>(null);
-  const hasMenu = Boolean(onEdit || onArchive);
+  const hasMenu = Boolean(onEdit || onArchive || onDelete);
 
   return (
     <Card sx={{ opacity: inactive ? 0.55 : 1 }}>
@@ -89,6 +92,12 @@ export default function EntityCard({
                 <MenuItem onClick={() => { setAnchor(null); onArchive(); }}>
                   <ListItemIcon><ArchiveRoundedIcon fontSize="small" /></ListItemIcon>
                   Archive
+                </MenuItem>
+              )}
+              {onDelete && (
+                <MenuItem onClick={() => { setAnchor(null); onDelete(); }} sx={{ color: 'error.main' }}>
+                  <ListItemIcon><DeleteOutlineRoundedIcon fontSize="small" color="error" /></ListItemIcon>
+                  Delete
                 </MenuItem>
               )}
             </Menu>

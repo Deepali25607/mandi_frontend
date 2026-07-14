@@ -4,6 +4,8 @@ import type {
   Adjustment,
   AdjustmentType,
   AgingBucket,
+  BankAccount,
+  BankBalancesResult,
   CashBookResult,
   Collection,
   CrateBalanceRow,
@@ -28,10 +30,33 @@ export const financeApi = apiSlice.injectEndpoints({
       providesTags: ['Collection'],
     }),
     createCollection: build.mutation<Collection, {
-      date: string; customerId: string; amount: number; paymentMode?: PaymentMode; reference?: string; notes?: string;
+      date: string; customerId: string; amount: number; paymentMode?: PaymentMode;
+      bankAccountId?: string | null; charges?: number; reference?: string; notes?: string;
     }>({
       query: (body) => ({ url: '/collections', method: 'POST', body }),
       invalidatesTags: ['Collection', 'Outstanding', 'Dashboard'],
+    }),
+
+    // ---- Bank accounts ----
+    getBankAccounts: build.query<BankAccount[], void>({
+      query: () => '/bank-accounts',
+      providesTags: ['BankAccount'],
+    }),
+    createBankAccount: build.mutation<BankAccount, { name: string; bankName?: string; accountNumber?: string; openingBalance?: number }>({
+      query: (body) => ({ url: '/bank-accounts', method: 'POST', body }),
+      invalidatesTags: ['BankAccount'],
+    }),
+    updateBankAccount: build.mutation<BankAccount, { id: string; body: Partial<{ name: string; bankName: string; accountNumber: string; openingBalance: number; isActive: boolean }> }>({
+      query: ({ id, body }) => ({ url: `/bank-accounts/${id}`, method: 'PATCH', body }),
+      invalidatesTags: ['BankAccount'],
+    }),
+    deleteBankAccount: build.mutation<{ deleted: true }, string>({
+      query: (id) => ({ url: `/bank-accounts/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['BankAccount'],
+    }),
+    getBankBalances: build.query<BankBalancesResult, void>({
+      query: () => '/accounting/bank-balances',
+      providesTags: ['BankAccount', 'Collection'],
     }),
 
     // ---- Expenses ----
@@ -142,6 +167,11 @@ export const financeApi = apiSlice.injectEndpoints({
 export const {
   useGetCollectionsQuery,
   useCreateCollectionMutation,
+  useGetBankAccountsQuery,
+  useCreateBankAccountMutation,
+  useUpdateBankAccountMutation,
+  useDeleteBankAccountMutation,
+  useGetBankBalancesQuery,
   useGetExpensesQuery,
   useGetExpenseCategoriesQuery,
   useCreateExpenseMutation,

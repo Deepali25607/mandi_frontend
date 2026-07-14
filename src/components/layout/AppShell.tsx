@@ -31,7 +31,8 @@ import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import ManageAccountsRoundedIcon from '@mui/icons-material/ManageAccountsRounded';
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { logout } from '@/store/authSlice';
+import { logout, setUser } from '@/store/authSlice';
+import { useGetMeQuery } from '@/api/authApi';
 import { resetAppearance, setAppearance } from '@/store/appearanceSlice';
 import { useGetAppearanceQuery } from '@/api/appearanceApi';
 import { wallpaperSx } from '@/theme/wallpaper';
@@ -67,6 +68,14 @@ export default function AppShell() {
     // Merge with defaults so older saved configs (missing newer keys) still apply.
     if (savedAppearance) dispatch(setAppearance({ ...DEFAULT_APPEARANCE, ...savedAppearance }));
   }, [savedAppearance, dispatch]);
+
+  // Refresh the signed-in user from the server so sessions created before newer
+  // fields existed (organization name, custom-role screens, …) get them without
+  // forcing a re-login.
+  const { data: freshUser } = useGetMeQuery(undefined, { skip: !user });
+  useEffect(() => {
+    if (freshUser) dispatch(setUser(freshUser));
+  }, [freshUser, dispatch]);
 
   if (!user) return null;
 
@@ -172,7 +181,7 @@ export default function AppShell() {
           Mandi ERP
         </Typography>
         <Typography variant="caption" noWrap sx={{ color: sb.subheaderColor }}>
-          {user.organizationId ? 'Trading Workspace' : 'Platform Admin'}
+          {user.organizationId ? user.organizationName ?? 'Trading Workspace' : 'Platform Admin'}
         </Typography>
       </Box>
     </Box>

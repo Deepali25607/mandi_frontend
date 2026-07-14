@@ -43,6 +43,8 @@ export interface AuthUser {
   /** The custom role's name, if the user is on a custom role. */
   customRoleName?: string | null;
   organizationId: string | null;
+  /** Display name of the user's organization (null for platform Super Admin). */
+  organizationName?: string | null;
   branchId: string | null;
   mustChangePassword: boolean;
   /** Feature keys enabled by the org's plan (empty for Super Admin). */

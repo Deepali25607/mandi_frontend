@@ -57,6 +57,14 @@ export default function DashboardPage() {
           {greeting}, {user?.name?.split(' ')[0] ?? 'there'} 👋
         </Typography>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+          {user?.organizationName && (
+            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+              {user.organizationName}
+            </Typography>
+          )}
+          {user?.organizationName && (
+            <Typography variant="body2" color="text.secondary">·</Typography>
+          )}
           <Typography variant="body2" color="text.secondary">
             {user?.roleLabel}
           </Typography>

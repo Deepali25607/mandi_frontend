@@ -16,6 +16,7 @@ import AgricultureRoundedIcon from '@mui/icons-material/AgricultureRounded';
 import CategoryRoundedIcon from '@mui/icons-material/CategoryRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
+import AccountBalanceRoundedIcon from '@mui/icons-material/AccountBalanceRounded';
 import CalculateRoundedIcon from '@mui/icons-material/CalculateRounded';
 import WidgetsRoundedIcon from '@mui/icons-material/WidgetsRounded';
 import AssessmentRoundedIcon from '@mui/icons-material/AssessmentRounded';
@@ -80,6 +81,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Billing', path: '/billing', icon: ReceiptLongRoundedIcon, roles: ['accountant', 'sales_operator'], section: 'Accounts' },
   { label: 'Settlements', path: '/settlements', icon: HandshakeRoundedIcon, roles: ['accountant', 'org_admin'], section: 'Accounts', feature: 'settlements' },
   { label: 'Outstanding', path: '/outstanding', icon: AccountBalanceWalletRoundedIcon, roles: ['org_admin', 'accountant', 'collection_executive'], section: 'Accounts' },
+  { label: 'Bank Accounts', path: '/bank-accounts', icon: AccountBalanceRoundedIcon, roles: ['org_admin', 'accountant'], section: 'Accounts' },
   { label: 'Adjustments', path: '/adjustments', icon: TuneRoundedIcon, roles: ['accountant', 'org_admin'], section: 'Accounts', feature: 'adjustments' },
   { label: 'Expenses', path: '/expenses', icon: MoneyOffRoundedIcon, roles: ['accountant', 'org_admin'], section: 'Accounts', feature: 'expenses' },
   { label: 'Accounting', path: '/accounting', icon: CalculateRoundedIcon, roles: ['accountant', 'org_admin', 'auditor'], section: 'Accounts', feature: 'accounting' },
