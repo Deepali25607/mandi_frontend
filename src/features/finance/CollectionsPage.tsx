@@ -8,6 +8,7 @@ import {
   CardContent,
   Chip,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
@@ -23,9 +24,13 @@ import PaymentsRoundedIcon from '@mui/icons-material/PaymentsRounded';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import { useCreateCollectionMutation, useGetBankAccountsQuery, useGetCollectionsQuery, useGetCustomerOutstandingQuery } from '@/api/financeApi';
+import { useGetOrganizationQuery } from '@/api/adminApi';
 import { useLookups } from '@/utils/useLookups';
+import { useAppSelector } from '@/store/hooks';
 import { formatCurrency } from '@/utils/format';
+import { buildReceiptPdf, shareReceiptOnWhatsApp } from '@/utils/receipt';
 import type { PaymentMode } from '@/types/domain';
 import type { Collection } from '@/types/finance';
 
@@ -41,6 +46,9 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 export default function CollectionsPage() {
   const { customers, customerName } = useLookups();
+  const orgName = useAppSelector((s) => s.auth.user?.organizationName);
+  const { data: org } = useGetOrganizationQuery();
+  const mobileFor = (id: string) => customers.find((c) => c.id === id)?.mobile;
   const { data: collections } = useGetCollectionsQuery();
   const { data: outstanding } = useGetCustomerOutstandingQuery();
   const { data: bankAccounts } = useGetBankAccountsQuery();
@@ -75,6 +83,57 @@ export default function CollectionsPage() {
   const selectedPending = customerId ? pendingFor(customerId) : 0;
   const recent = useMemo(() => (collections ?? []).slice(0, 20), [collections]);
 
+  const company = {
+    name: org?.name ?? orgName ?? 'Mandi ERP',
+    address: org?.address,
+    gstNumber: org?.gstNumber,
+    mobile: org?.mobile,
+    email: org?.email,
+  };
+
+  /** Short WhatsApp caption that accompanies the PDF receipt. */
+  const receiptText = (c: Collection) => {
+    const due = pendingFor(c.customerId);
+    return [
+      `*${company.name}*`,
+      `Payment Receipt ${c.collectionNumber} · ${c.date}`,
+      `Received from ${customerName(c.customerId)}`,
+      '',
+      `*Amount received: ${formatCurrency(c.amount, false)}*`,
+      `Mode: ${c.paymentMode.toUpperCase()}`,
+      ...(c.reference ? [`Reference: ${c.reference}`] : []),
+      `Balance due: ${formatCurrency(due, false)}`,
+      '',
+      'Receipt PDF attached. Thank you! 🙏',
+    ].join('\n');
+  };
+
+  /** Build a company-branded PDF receipt and share it (with the caption) on WhatsApp. */
+  const shareReceipt = async (c: Collection) => {
+    const due = pendingFor(c.customerId);
+    const pdf = buildReceiptPdf({
+      company,
+      docTitle: 'PAYMENT RECEIPT',
+      number: c.collectionNumber,
+      date: c.date,
+      partyLabel: 'Received from',
+      partyName: customerName(c.customerId),
+      fields: [
+        { label: 'Amount received', value: formatCurrency(c.amount, false), strong: true },
+        { label: 'Payment mode', value: c.paymentMode.toUpperCase() },
+        ...(c.bankAccountId ? [{ label: 'Bank account', value: bankName(c.bankAccountId) ?? '—' }] : []),
+        ...((c.charges ?? 0) > 0 ? [{ label: 'Bank charges', value: formatCurrency(c.charges ?? 0, false) }] : []),
+        ...(c.reference ? [{ label: 'Reference', value: c.reference }] : []),
+        { label: 'Balance due', value: formatCurrency(due, false) },
+      ],
+      note: 'This is a computer-generated receipt.',
+    });
+    const result = await shareReceiptOnWhatsApp(pdf, receiptText(c), mobileFor(c.customerId));
+    if (result === 'downloaded') {
+      setToast('Receipt PDF downloaded — attach it to the WhatsApp chat that just opened.');
+    }
+  };
+
   const save = async () => {
     setError(null);
     try {
@@ -88,6 +147,8 @@ export default function CollectionsPage() {
       setAmount('');
       setCharges('');
       setReference('');
+      // Surface the receipt so the user can share it on WhatsApp right away.
+      setDetail(res);
     } catch (e) {
       const msg = (e as { data?: { message?: string | string[] } })?.data?.message;
       setError(Array.isArray(msg) ? msg.join(', ') : msg ?? 'Could not save collection.');
@@ -251,6 +312,17 @@ export default function CollectionsPage() {
                 <Row label="Current due" value={formatCurrency(pendingFor(detail.customerId), false)} />
               </Stack>
             </DialogContent>
+            <DialogActions sx={{ p: 2, gap: 1 }}>
+              <Button onClick={() => setDetail(null)} color="inherit">Close</Button>
+              <Button
+                variant="contained"
+                color="success"
+                startIcon={<WhatsAppIcon />}
+                onClick={() => shareReceipt(detail)}
+              >
+                Share receipt (PDF)
+              </Button>
+            </DialogActions>
           </>
         )}
       </Dialog>
