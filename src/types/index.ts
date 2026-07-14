@@ -122,3 +122,20 @@ export interface CashInHandBreakdown {
   net: number;
   rows: CashInHandRow[];
 }
+
+export interface SalesModeRow {
+  date: string;
+  saleNumber: string;
+  customer: string;
+  gross: number;
+}
+
+/** Sales of one payment mode over a date range — powers the split sales tiles. */
+export interface SalesModeResult {
+  mode: string;
+  from: string;
+  to: string;
+  total: number;
+  count: number;
+  rows: SalesModeRow[];
+}

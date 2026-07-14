@@ -41,6 +41,7 @@ import { useGetCustomerOutstandingQuery } from '@/api/financeApi';
 import { useAppSelector } from '@/store/hooks';
 import KpiCard from '@/components/common/KpiCard';
 import ChartCard from '@/components/common/ChartCard';
+import SalesModeCard from './SalesModeCard';
 import { formatCurrency } from '@/utils/format';
 import type { CustomerOutstandingRow } from '@/types/finance';
 
@@ -131,6 +132,18 @@ export default function DashboardPage() {
                 }
               />
             ))}
+      </Box>
+
+      {/* Cash vs Credit sales — each with its own date-range filter and records */}
+      <Box
+        sx={{
+          display: 'grid',
+          gap: 2,
+          gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' },
+        }}
+      >
+        <SalesModeCard mode="cash" title="Cash Sales" accent="#1f8a4c" />
+        <SalesModeCard mode="credit" title="Credit Sales" accent="#f0a500" />
       </Box>
 
       {/* Charts */}

@@ -7,6 +7,9 @@ import {
   Button,
   Card,
   CardContent,
+  Dialog,
+  DialogContent,
+  DialogTitle,
   Divider,
   IconButton,
   LinearProgress,
@@ -28,6 +31,7 @@ import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import PrintRoundedIcon from '@mui/icons-material/PrintRounded';
 import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { formatCurrency, formatNumber } from '@/utils/format';
 import { printHtml } from '@/utils/share';
 
@@ -208,6 +212,11 @@ export function ReportShell({
   // Reports page); fall back to the Reports landing on a direct/fresh load.
   const goBack = () => (location.key === 'default' ? navigate('/reports') : navigate(-1));
 
+  // Click any row to see the full record (all columns) in a dialog.
+  const [detail, setDetail] = useState<{ row: ReportRow; index: number } | null>(null);
+  // First non-numeric column doubles as the record's headline (invoice no., name, …).
+  const headlineCol = columns.find((c) => !isRight(c)) ?? columns[0];
+
   const totals = columns.map((c) =>
     c.total ? rows.reduce((s, r) => s + (Number(r[c.key]) || 0), 0) : null,
   );
@@ -265,7 +274,10 @@ export function ReportShell({
 
       <Card>
         <CardContent sx={{ p: { xs: 1, sm: 2 } }}>
-          <Typography variant="caption" color="text.secondary">{rows.length} record{rows.length === 1 ? '' : 's'}{meta ? ` · ${meta}` : ''}</Typography>
+          <Typography variant="caption" color="text.secondary">
+            {rows.length} record{rows.length === 1 ? '' : 's'}{meta ? ` · ${meta}` : ''}
+            {rows.length > 0 && ' · tap a row for details'}
+          </Typography>
           {rows.length === 0 ? (
             <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>{emptyText}</Typography>
           ) : (
@@ -286,7 +298,12 @@ export function ReportShell({
                 </TableHead>
                 <TableBody>
                   {rows.map((r, i) => (
-                    <TableRow key={i} hover sx={{ '&:nth-of-type(even)': { bgcolor: 'action.hover' } }}>
+                    <TableRow
+                      key={i}
+                      hover
+                      onClick={() => setDetail({ row: r, index: i })}
+                      sx={{ cursor: 'pointer', '&:nth-of-type(even)': { bgcolor: 'action.hover' } }}
+                    >
                       {columns.map((c) => <TableCell key={c.key} align={isRight(c) ? 'right' : 'left'} sx={{ whiteSpace: 'nowrap', fontWeight: c.currency ? 600 : 400 }}>{display(c, r[c.key])}</TableCell>)}
                     </TableRow>
                   ))}
@@ -307,6 +324,41 @@ export function ReportShell({
           )}
         </CardContent>
       </Card>
+
+      {/* Record detail — full field list for the clicked row. */}
+      <Dialog open={Boolean(detail)} onClose={() => setDetail(null)} fullWidth maxWidth="xs">
+        {detail && (
+          <>
+            <DialogTitle sx={{ fontWeight: 800, display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+              <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                {title}
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 400 }}>
+                  {display(headlineCol, detail.row[headlineCol.key]) || `Record ${detail.index + 1}`}
+                </Typography>
+              </Box>
+              <IconButton onClick={() => setDetail(null)} size="small"><CloseRoundedIcon /></IconButton>
+            </DialogTitle>
+            <DialogContent dividers>
+              <Stack spacing={0.25}>
+                {columns.map((c, ci) => (
+                  <Box
+                    key={c.key}
+                    sx={{
+                      display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'baseline',
+                      py: 1, ...(ci < columns.length - 1 ? { borderBottom: '1px solid', borderColor: 'divider' } : {}),
+                    }}
+                  >
+                    <Typography variant="body2" color="text.secondary">{c.label}</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: c.currency ? 700 : 600, textAlign: 'right' }}>
+                      {display(c, detail.row[c.key])}
+                    </Typography>
+                  </Box>
+                ))}
+              </Stack>
+            </DialogContent>
+          </>
+        )}
+      </Dialog>
     </Stack>
   );
 }
