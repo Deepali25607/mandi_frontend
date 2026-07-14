@@ -1,9 +1,24 @@
+import { useMemo, useState } from 'react';
 import {
   Alert,
   Box,
+  Button,
+  Card,
+  CardContent,
   Chip,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  IconButton,
+  ListItemButton,
   Skeleton,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
   Typography,
 } from '@mui/material';
 import {
@@ -12,23 +27,22 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
+import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import PaymentsRoundedIcon from '@mui/icons-material/PaymentsRounded';
 import { useNavigate } from 'react-router-dom';
-import { useGetDashboardOverviewQuery } from '@/api/dashboardApi';
+import { useGetCashInHandQuery, useGetDashboardOverviewQuery } from '@/api/dashboardApi';
+import { useGetCustomerOutstandingQuery } from '@/api/financeApi';
 import { useAppSelector } from '@/store/hooks';
 import KpiCard from '@/components/common/KpiCard';
 import ChartCard from '@/components/common/ChartCard';
 import { formatCurrency } from '@/utils/format';
-
-const PIE_COLORS = ['#1f8a4c', '#f0a500', '#2f80ed', '#9b51e0', '#eb5757', '#56ccf2'];
+import type { CustomerOutstandingRow } from '@/types/finance';
 
 /** Drill-down: each KPI tile opens the relevant detailed report. */
 const KPI_LINKS: Record<string, string> = {
@@ -47,6 +61,18 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   // Always pull the latest figures when the dashboard is opened.
   const { data, isLoading, isError, refetch } = useGetDashboardOverviewQuery(undefined, { refetchOnMountOrArgChange: true });
+  const { data: outstanding } = useGetCustomerOutstandingQuery();
+
+  // Customers with money still to collect, highest pending first.
+  const pending = useMemo(
+    () => (outstanding ?? []).filter((c) => c.balance > 0).sort((a, b) => b.balance - a.balance),
+    [outstanding],
+  );
+  const [detail, setDetail] = useState<CustomerOutstandingRow | null>(null);
+
+  // "Today's Cash in Hand" tile → itemised cash inflow/outflow breakdown.
+  const [cashOpen, setCashOpen] = useState(false);
+  const { data: cash } = useGetCashInHandQuery(undefined, { skip: !cashOpen });
 
   const greeting = getGreeting();
 
@@ -96,7 +122,13 @@ export default function DashboardPage() {
               <KpiCard
                 key={kpi.key}
                 data={kpi}
-                onClick={KPI_LINKS[kpi.key] ? () => navigate(KPI_LINKS[kpi.key]) : undefined}
+                onClick={
+                  kpi.key === 'cashInHand'
+                    ? () => setCashOpen(true)
+                    : KPI_LINKS[kpi.key]
+                      ? () => navigate(KPI_LINKS[kpi.key])
+                      : undefined
+                }
               />
             ))}
       </Box>
@@ -147,21 +179,51 @@ export default function DashboardPage() {
           )}
         </ChartCard>
 
-        <ChartCard title="Collection Trend" subtitle="Last 7 days">
-          {data ? (
-            <ResponsiveContainer>
-              <BarChart data={data.charts.collectionTrend} margin={{ left: -16, right: 8, top: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eceff0" />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={12} />
-                <YAxis tickFormatter={(v) => formatCurrency(v)} tickLine={false} axisLine={false} fontSize={12} width={56} />
-                <Tooltip formatter={(v: number) => formatCurrency(v, false)} />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]} fill="#2f80ed" />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <Skeleton variant="rounded" height="100%" />
-          )}
-        </ChartCard>
+        {/* Customers with pending amount — tap for their details. */}
+        <Card sx={{ height: '100%' }}>
+          <CardContent>
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+              <Box sx={{ flexGrow: 1 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Pending from Customers</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {pending.length} customer{pending.length === 1 ? '' : 's'} with dues · tap for details
+                </Typography>
+              </Box>
+              <Chip
+                label={`Total ${formatCurrency(pending.reduce((s, c) => s + c.balance, 0), false)}`}
+                color="warning" size="small" sx={{ fontWeight: 700 }}
+              />
+            </Stack>
+            {!outstanding ? (
+              <Skeleton variant="rounded" height={260} />
+            ) : pending.length === 0 ? (
+              <Box sx={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Typography color="text.secondary">No pending dues — all customers are settled 🎉</Typography>
+              </Box>
+            ) : (
+              <Stack sx={{ height: 260, overflowY: 'auto', pr: 0.5 }}>
+                {pending.map((c) => (
+                  <ListItemButton
+                    key={c.customerId}
+                    onClick={() => setDetail(c)}
+                    sx={{ borderRadius: 2, py: 1, px: 1.25 }}
+                  >
+                    <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+                      <Typography sx={{ fontWeight: 600 }} noWrap>{c.name}</Typography>
+                      <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+                        {[c.code, c.area].filter(Boolean).join(' · ') || '—'}
+                      </Typography>
+                    </Box>
+                    <Typography sx={{ fontWeight: 800, color: 'warning.dark', whiteSpace: 'nowrap', ml: 1 }}>
+                      {formatCurrency(c.balance, false)}
+                    </Typography>
+                    <ChevronRightRoundedIcon fontSize="small" color="action" sx={{ ml: 0.5 }} />
+                  </ListItemButton>
+                ))}
+              </Stack>
+            )}
+          </CardContent>
+        </Card>
 
         <ChartCard title="Top Items by Sales">
           {data ? (
@@ -183,31 +245,115 @@ export default function DashboardPage() {
           )}
         </ChartCard>
 
-        <ChartCard title="Sales by Customer">
-          {data ? (
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie
-                  data={data.charts.customerWiseSales}
-                  dataKey="value"
-                  nameKey="label"
-                  innerRadius={48}
-                  outerRadius={84}
-                  paddingAngle={2}
-                >
-                  {data.charts.customerWiseSales.map((_, i) => (
-                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Legend verticalAlign="bottom" iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-                <Tooltip formatter={(v: number) => formatCurrency(v, false)} />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <Skeleton variant="rounded" height="100%" />
-          )}
-        </ChartCard>
       </Box>
+
+      {/* Customer pending details */}
+      <Dialog open={Boolean(detail)} onClose={() => setDetail(null)} fullWidth maxWidth="xs">
+        {detail && (
+          <>
+            <DialogTitle sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                {detail.name}
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 400 }}>
+                  {[detail.code, detail.area].filter(Boolean).join(' · ') || '—'}
+                </Typography>
+              </Box>
+              <IconButton onClick={() => setDetail(null)} size="small"><CloseRoundedIcon /></IconButton>
+            </DialogTitle>
+            <DialogContent dividers>
+              <Stack spacing={1}>
+                <DetailRow label="Opening balance" value={detail.opening} />
+                <DetailRow label="Sales (billed)" value={detail.sales} />
+                <DetailRow label="Collected" value={-detail.collected} />
+                <Divider />
+                <DetailRow label="Pending amount" value={detail.balance} strong />
+              </Stack>
+              <Button
+                fullWidth variant="contained" startIcon={<PaymentsRoundedIcon />} sx={{ mt: 2 }}
+                onClick={() => { setDetail(null); navigate('/collections'); }}
+              >
+                Record Collection
+              </Button>
+            </DialogContent>
+          </>
+        )}
+      </Dialog>
+
+      {/* Today's Cash in Hand — itemised cash inflows & outflows */}
+      <Dialog open={cashOpen} onClose={() => setCashOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+            Today's Cash in Hand
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 400 }}>
+              {cash?.date ?? 'today'} · cash-mode transactions only
+            </Typography>
+          </Box>
+          <IconButton onClick={() => setCashOpen(false)} size="small"><CloseRoundedIcon /></IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          {!cash ? (
+            <Skeleton variant="rounded" height={200} />
+          ) : (
+            <>
+              <Stack spacing={1} sx={{ mb: 2 }}>
+                <DetailRow label="＋ Cash sales" value={cash.cashSales} />
+                <DetailRow label="− Cash expenses" value={-cash.cashExpenses} />
+                <DetailRow label="− Deposits to bank" value={-cash.depositsToBank} />
+                {cash.withdrawalsFromBank > 0 && (
+                  <DetailRow label="＋ Withdrawals from bank" value={cash.withdrawalsFromBank} />
+                )}
+                <Divider />
+                <DetailRow label="Cash in hand" value={cash.net} strong />
+              </Stack>
+
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                Transactions ({cash.rows.length})
+              </Typography>
+              {cash.rows.length === 0 ? (
+                <Box sx={{ py: 3, textAlign: 'center' }}>
+                  <Typography color="text.secondary">No cash transactions for this day.</Typography>
+                </Box>
+              ) : (
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700 }}>Voucher</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Particulars</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>In</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>Out</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {cash.rows.map((r) => (
+                      <TableRow key={r.voucher}>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{r.voucher}</TableCell>
+                        <TableCell>{r.particulars}</TableCell>
+                        <TableCell align="right" sx={{ color: 'success.dark' }}>
+                          {r.inflow ? formatCurrency(r.inflow, false) : '—'}
+                        </TableCell>
+                        <TableCell align="right" sx={{ color: 'error.dark' }}>
+                          {r.outflow ? formatCurrency(r.outflow, false) : '—'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </Stack>
+  );
+}
+
+function DetailRow({ label, value, strong }: { label: string; value: number; strong?: boolean }) {
+  return (
+    <Stack direction="row" justifyContent="space-between" alignItems="baseline">
+      <Typography variant="body2" color="text.secondary">{label}</Typography>
+      <Typography sx={{ fontWeight: strong ? 800 : 600, color: strong ? 'warning.dark' : 'text.primary' }}>
+        {formatCurrency(value, false)}
+      </Typography>
     </Stack>
   );
 }

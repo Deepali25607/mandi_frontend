@@ -11,6 +11,7 @@ import CallMadeRoundedIcon from '@mui/icons-material/CallMadeRounded';
 import Inventory2RoundedIcon from '@mui/icons-material/Inventory2Rounded';
 import PercentRoundedIcon from '@mui/icons-material/PercentRounded';
 import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
+import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
 import type { KpiCard as KpiCardData } from '@/types';
 import { formatCurrency, formatNumber } from '@/utils/format';
 
@@ -18,6 +19,7 @@ const ICONS: Record<string, ComponentType> = {
   truck: LocalShippingRoundedIcon,
   cart: ShoppingCartRoundedIcon,
   cash: PaymentsRoundedIcon,
+  wallet: AccountBalanceWalletRoundedIcon,
   receivable: CallReceivedRoundedIcon,
   payable: CallMadeRoundedIcon,
   box: Inventory2RoundedIcon,
@@ -30,6 +32,7 @@ const TINTS: Record<string, string> = {
   truck: '#e8f3ec',
   cart: '#e6f0fb',
   cash: '#fdf3dd',
+  wallet: '#e6f0fb',
   receivable: '#e8f7f0',
   payable: '#fdeaea',
   box: '#eef0f5',

@@ -104,3 +104,21 @@ export interface DashboardData {
     supplierWiseSales: SeriesPoint[];
   };
 }
+
+export interface CashInHandRow {
+  voucher: string;
+  particulars: string;
+  inflow: number;
+  outflow: number;
+}
+
+/** Detailed breakdown behind the "Today's Cash in Hand" KPI tile. */
+export interface CashInHandBreakdown {
+  date: string;
+  cashSales: number;
+  cashExpenses: number;
+  depositsToBank: number;
+  withdrawalsFromBank: number;
+  net: number;
+  rows: CashInHandRow[];
+}

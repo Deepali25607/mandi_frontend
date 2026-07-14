@@ -68,6 +68,8 @@ export interface SupplierBill {
   grossSales: number;
   commissionAmount: number;
   marketFeeAmount: number;
+  /** Transport (bhada) auto-deducted from the period's arrivals. */
+  transportCharges: number;
   labourCharges: number;
   crateCharges: number;
   otherCharges: number;
@@ -82,6 +84,8 @@ export interface SupplierBillPreview {
   marketFee: number;
   net: number;
   saleLineCount: number;
+  /** Transport (bhada) that will be auto-deducted for this period. */
+  transport: number;
 }
 
 export interface SupplierPayment {

@@ -223,7 +223,7 @@ export default function InventoryPage() {
             filteredLots.length === 0 ? <Empty text={q ? 'No lots match your search.' : showAllLots ? 'No lots yet.' : 'No open lots. Toggle to include closed lots.'} /> : (
               <Stack spacing={1}>
                 {filteredLots.map((lot) => {
-                  const pct = lot.weightArrived > 0 ? Math.round((lot.weightAvailable / lot.weightArrived) * 100) : 0;
+                  const pct = lot.qtyArrived > 0 ? Math.round((lot.qtyAvailable / lot.qtyArrived) * 100) : 0;
                   const st = lotStatus(pct);
                   const age = daysAgo(lot.date);
                   const barColor = st.color === 'default' ? theme.palette.grey[400] : theme.palette[st.color].main;
@@ -248,7 +248,7 @@ export default function InventoryPage() {
                           sx={{ flexGrow: 1, height: 8, borderRadius: 1, bgcolor: 'action.hover', '& .MuiLinearProgress-bar': { bgcolor: barColor } }}
                         />
                         <Typography variant="caption" sx={{ fontWeight: 700, minWidth: 120, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                          {formatNumber(lot.weightAvailable)} / {formatNumber(lot.weightArrived)} kg
+                          {formatNumber(lot.qtyAvailable)} / {formatNumber(lot.qtyArrived)} bags
                         </Typography>
                       </Stack>
                     </Box>

@@ -63,7 +63,7 @@ export default function SettlementsPage() {
 
   const recent = useMemo(() => bills ?? [], [bills]);
   const netPayable = previewData
-    ? previewData.net - Number(labour || 0) - Number(crate || 0) - Number(other || 0)
+    ? previewData.net - previewData.transport - Number(labour || 0) - Number(crate || 0) - Number(other || 0)
     : 0;
 
   const runPreview = async () => {
@@ -138,8 +138,14 @@ export default function SettlementsPage() {
                     <Row label="− Commission" value={-previewData.commission} />
                     <Row label="− Market fee" value={-previewData.marketFee} />
                     <Row label="Sales net" value={previewData.net} bold />
+                    <Row label="− Transport (bhada) · auto" value={-previewData.transport} />
                   </Stack>
-                  <Typography variant="caption" color="text.secondary">Settlement deductions</Typography>
+                  {previewData.transport > 0 && (
+                    <Typography variant="caption" color="text.secondary">
+                      Transport is auto-summed from this supplier's arrivals in the selected period and always deducted.
+                    </Typography>
+                  )}
+                  <Typography variant="caption" color="text.secondary">Other settlement deductions</Typography>
                   <Stack direction="row" spacing={1.5}>
                     <TextField size="small" label="Labour ₹" type="number" value={labour} onChange={(e) => setLabour(e.target.value)} />
                     <TextField size="small" label="Crate ₹" type="number" value={crate} onChange={(e) => setCrate(e.target.value)} />
@@ -232,6 +238,7 @@ export default function SettlementsPage() {
                 <Row label="Gross sales" value={detail.grossSales} />
                 <Row label="− Commission" value={-detail.commissionAmount} />
                 <Row label="− Market fee" value={-detail.marketFeeAmount} />
+                <Row label="− Transport (bhada)" value={-(detail.transportCharges ?? 0)} />
                 <Row label="− Labour" value={-detail.labourCharges} />
                 <Row label="− Crate" value={-detail.crateCharges} />
                 <Row label="− Other" value={-detail.otherCharges} />
