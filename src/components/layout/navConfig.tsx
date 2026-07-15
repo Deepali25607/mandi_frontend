@@ -4,6 +4,7 @@ import SpaceDashboardRoundedIcon from '@mui/icons-material/SpaceDashboardRounded
 import BackupRoundedIcon from '@mui/icons-material/BackupRounded';
 import BusinessRoundedIcon from '@mui/icons-material/BusinessRounded';
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
+import PrintRoundedIcon from '@mui/icons-material/PrintRounded';
 import WorkspacePremiumRoundedIcon from '@mui/icons-material/WorkspacePremiumRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
@@ -96,6 +97,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Users', path: '/users', icon: ManageAccountsRoundedIcon, roles: ['org_admin'], section: 'Admin' },
   { label: 'Roles & Access', path: '/roles', icon: AdminPanelSettingsRoundedIcon, roles: ['org_admin'], section: 'Admin' },
   { label: 'Appearance', path: '/appearance', icon: PaletteRoundedIcon, roles: ['org_admin'], section: 'Admin' },
+  { label: 'Printers', path: '/printers', icon: PrintRoundedIcon, roles: ['org_admin'], section: 'Admin' },
   { label: 'Data Backup', path: '/backup', icon: BackupRoundedIcon, roles: ['org_admin'], section: 'Admin' },
   { label: 'Subscription', path: '/subscription', icon: WorkspacePremiumRoundedIcon, roles: ['org_admin'], section: 'Admin' },
 ];

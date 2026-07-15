@@ -340,7 +340,17 @@ export default function ArrivalEntryPage() {
                 No arrivals yet. Saved arrivals show here.
               </Typography>
             ) : (
-              <Stack spacing={1} sx={{ maxHeight: { lg: 'calc(100dvh - 180px)' }, overflowY: { lg: 'auto' }, pr: { lg: 0.5 } }}>
+              /* Flex column with a capped height, so children must be pinned with
+                 flexShrink:0 — otherwise they squash together instead of scrolling. */
+              <Stack
+                spacing={1}
+                sx={{
+                  maxHeight: { lg: 'calc(100dvh - 220px)' },
+                  overflowY: { lg: 'auto' },
+                  pr: { lg: 0.5 },
+                  '& > *': { flexShrink: 0 },
+                }}
+              >
                 {recent.map((a) => (
                   <Card key={a.id} variant="outlined">
                     <CardActionArea onClick={() => setDetail(a)} sx={{ p: 1.25 }}>
@@ -351,8 +361,8 @@ export default function ArrivalEntryPage() {
                             {a.arrivalNumber} · {a.date} · {a.lines.length} lot(s) · {a.totalWeight}kg{a.vehicleNumber ? ` · ${a.vehicleNumber}` : ''}
                           </Typography>
                         </Box>
-                        <Typography sx={{ fontWeight: 800 }}>{formatCurrency(a.totalValue)}</Typography>
-                        <ChevronRightRoundedIcon color="action" fontSize="small" />
+                        <Typography sx={{ fontWeight: 800, whiteSpace: 'nowrap' }}>{formatCurrency(a.totalValue)}</Typography>
+                        <ChevronRightRoundedIcon color="action" fontSize="small" sx={{ flexShrink: 0 }} />
                       </Stack>
                     </CardActionArea>
                   </Card>

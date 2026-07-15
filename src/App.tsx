@@ -30,6 +30,7 @@ import OrganizationPage from '@/features/admin/OrganizationPage';
 import UsersPage from '@/features/admin/UsersPage';
 import RolesPage from '@/features/admin/RolesPage';
 import AppearancePage from '@/features/admin/AppearancePage';
+import PrintersPage from '@/features/admin/PrintersPage';
 import BackupPage from '@/features/admin/BackupPage';
 import SubscriptionPage from '@/features/admin/SubscriptionPage';
 import ReportsPage from '@/features/reports/ReportsPage';
@@ -67,6 +68,7 @@ const IMPLEMENTED = new Set([
   '/users',
   '/roles',
   '/appearance',
+  '/printers',
   '/backup',
   '/subscription',
   '/reports',
@@ -138,6 +140,7 @@ export default function App() {
         <Route path="/users" element={<UsersPage />} />
         <Route path="/roles" element={<RolesPage />} />
         <Route path="/appearance" element={<AppearancePage />} />
+        <Route path="/printers" element={<PrintersPage />} />
         <Route path="/subscription" element={<RoleGuard scope="org"><SubscriptionPage /></RoleGuard>} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/reports/:reportKey" element={<ReportRunnerPage />} />

@@ -10,6 +10,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   IconButton,
   MenuItem,
   Snackbar,
@@ -24,6 +25,10 @@ import PersonAddAltRoundedIcon from '@mui/icons-material/PersonAddAltRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
+import PrintRoundedIcon from '@mui/icons-material/PrintRounded';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import WhatsAppIcon from '@mui/icons-material/WhatsApp';
+import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import { useGetCustomersQuery, useGetItemsQuery } from '@/api/mastersApi';
 import {
   useCreateSaleMutation,
@@ -34,10 +39,14 @@ import {
   useUpdateSaleMutation,
 } from '@/api/operationsApi';
 import { useGetCustomerOutstandingQuery } from '@/api/financeApi';
+import { useGetOrganizationQuery } from '@/api/adminApi';
 import { useAppSelector } from '@/store/hooks';
 import CustomerFormDialog from '@/components/masters/CustomerFormDialog';
 import { formatCurrency } from '@/utils/format';
-import type { PaymentMode, StockLot } from '@/types/domain';
+import { shareOnWhatsApp } from '@/utils/share';
+import { buildInvoiceData, downloadInvoicePdf, printThermalInvoice, type PaperSpec } from '@/utils/invoice';
+import PrintMenu from '@/components/common/PrintMenu';
+import type { PaymentMode, Sale, StockLot } from '@/types/domain';
 
 interface LineDraft {
   itemId: string;
@@ -89,9 +98,13 @@ export default function SaleEntryPage() {
   const [editNumber, setEditNumber] = useState('');
   const [linesLocked, setLinesLocked] = useState(false);
   const [lockReason, setLockReason] = useState<string | null>(null);
+  // Just-billed sale — drives the "print the invoice now" dialog.
+  const [billed, setBilled] = useState<Sale | null>(null);
+  const [printAnchor, setPrintAnchor] = useState<null | HTMLElement>(null);
 
   const { data: items } = useGetItemsQuery();
   const { data: customers } = useGetCustomersQuery();
+  const { data: org } = useGetOrganizationQuery();
   // While editing, load ALL lots so the sale's already-drawn (possibly closed)
   // lots still appear in the picker; otherwise only lots with stock available.
   const { data: lots } = useGetStockLotsQuery(editingId ? {} : { availableOnly: true });
@@ -112,7 +125,7 @@ export default function SaleEntryPage() {
   const activeItems = (items ?? []).filter((i) => i.isActive);
   const activeCustomers = (customers ?? []).filter((c) => c.isActive);
   const customerName = (id: string) => (customers ?? []).find((c) => c.id === id)?.name ?? 'Customer';
-  const recentSales = useMemo(() => (sales ?? []).slice(0, 15), [sales]);
+  const recentSales = useMemo(() => (sales ?? []).slice(0, 20), [sales]);
 
   const lotsByItem = useMemo(() => {
     const m = new Map<string, StockLot[]>();
@@ -230,6 +243,46 @@ export default function SaleEntryPage() {
     }
   };
 
+  const itemName = (id: string) => (items ?? []).find((i) => i.id === id)?.name ?? 'Item';
+
+  const invoiceData = (sale: Sale) => {
+    const c = (customers ?? []).find((x) => x.id === sale.customerId);
+    return buildInvoiceData({
+      sale,
+      company: {
+        name: org?.name ?? 'Mandi ERP',
+        address: org?.address,
+        gstNumber: org?.gstNumber,
+        mobile: org?.mobile,
+        email: org?.email,
+      },
+      customerName: customerName(sale.customerId),
+      customerMobile: c?.mobile,
+      customerArea: c?.area,
+      itemName,
+    });
+  };
+
+  /** `paper` null = PDF; otherwise print to that configured printer. */
+  const output = (sale: Sale, paper: PaperSpec | null) => {
+    setPrintAnchor(null);
+    if (!paper) downloadInvoicePdf(invoiceData(sale));
+    else printThermalInvoice(invoiceData(sale), paper);
+  };
+
+  /** Buyer-facing WhatsApp summary — gross only, no commission. */
+  const invoiceText = (sale: Sale) =>
+    [
+      `*${org?.name ?? 'Mandi ERP'}*`,
+      `Invoice ${sale.saleNumber} · ${sale.date}`,
+      `Customer: ${customerName(sale.customerId)}`,
+      '',
+      ...sale.lines.map((l) => `${itemName(l.itemId)} — ${l.weight}kg @ ₹${l.rate} = ${formatCurrency(l.grossAmount, false)}`),
+      '',
+      `*Net Amount: ${formatCurrency(sale.grossAmount, false)}*`,
+      `Payment: ${sale.paymentMode.toUpperCase()}`,
+    ].join('\n');
+
   const save = async () => {
     setError(null);
     try {
@@ -246,6 +299,8 @@ export default function SaleEntryPage() {
         setToast(`Sale ${sale.saleNumber} saved · billed ${formatCurrency(sale.grossAmount, false)}`);
         setCustomerId('');
         setLines([emptyLine()]);
+        // Offer the invoice straight away — no trip to the Billing screen.
+        setBilled(sale);
       }
     } catch (e) {
       const msg = (e as { data?: { message?: string | string[] } })?.data?.message;
@@ -254,7 +309,9 @@ export default function SaleEntryPage() {
   };
 
   return (
-    <Stack spacing={2} sx={{ maxWidth: 760, mx: 'auto' }}>
+    <Box sx={{ display: 'flex', alignItems: { lg: 'stretch' }, flexDirection: { xs: 'column', lg: 'row' } }}>
+      {/* ---- Entry form (left) ---- */}
+      <Stack spacing={2} sx={{ flex: { lg: '0 1 760px' }, width: '100%' }}>
       <Stack direction="row" alignItems="center" spacing={1}>
         <Typography variant="h6" sx={{ fontWeight: 800, flexGrow: 1 }}>
           {editingId ? `Edit Sale ${editNumber}` : 'Daily Sale Entry'}
@@ -432,49 +489,81 @@ export default function SaleEntryPage() {
         </CardContent>
       </Card>
 
-      {/* Recent sales — click Edit to load one into the form above. */}
-      <Card variant="outlined">
-        <CardContent sx={{ pb: '8px !important' }}>
-          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-            <HistoryRoundedIcon color="primary" fontSize="small" />
-            <Typography variant="subtitle1" sx={{ fontWeight: 800, flexGrow: 1 }}>Recent sales</Typography>
-            <Chip size="small" label={(sales ?? []).length} />
-          </Stack>
-          {recentSales.length === 0 ? (
-            <Typography color="text.secondary" variant="body2" sx={{ py: 3, textAlign: 'center' }}>
-              No sales yet. Saved sales show here.
-            </Typography>
-          ) : (
-            <Stack spacing={1}>
-              {recentSales.map((s) => (
-                <Stack key={s.id} direction="row" alignItems="center" spacing={1}>
-                  <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                    <Typography sx={{ fontWeight: 700 }} noWrap>{customerName(s.customerId)}</Typography>
-                    <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
-                      {s.saleNumber} · {s.date} · {s.lines.length} item(s)
-                    </Typography>
-                  </Box>
-                  <Typography sx={{ fontWeight: 800 }}>{formatCurrency(s.grossAmount)}</Typography>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    startIcon={<EditRoundedIcon />}
-                    onClick={() => enterEdit(s.id)}
-                    disabled={editingId === s.id}
-                  >
-                    Edit
-                  </Button>
-                  {isAdmin && (
-                    <IconButton size="small" color="error" onClick={() => setConfirmDelete({ id: s.id, label: s.saleNumber })}>
-                      <DeleteOutlineRoundedIcon fontSize="small" />
-                    </IconButton>
-                  )}
+      </Stack>
+
+      {/* ---- Divider between form and recent activity ---- */}
+      <Divider orientation="vertical" flexItem sx={{ ml: { lg: 'auto' }, mr: { lg: 3 }, display: { xs: 'none', lg: 'block' } }} />
+
+      {/* ---- Recent sales (far right) — tap one for its invoice (print/PDF/share),
+              or Edit to load it into the form. ---- */}
+      <Box sx={{ width: { xs: '100%', lg: 360 }, flexShrink: 0, mt: { xs: 2, lg: 0 } }}>
+        <Box sx={{ position: { lg: 'sticky' }, top: { lg: 16 } }}>
+          <Card variant="outlined">
+            <CardContent sx={{ pb: '8px !important' }}>
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                <HistoryRoundedIcon color="primary" fontSize="small" />
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, flexGrow: 1 }}>Recent sales</Typography>
+                <Chip size="small" label={(sales ?? []).length} />
+              </Stack>
+              {recentSales.length === 0 ? (
+                <Typography color="text.secondary" variant="body2" sx={{ py: 3, textAlign: 'center' }}>
+                  No sales yet. Saved sales show here.
+                </Typography>
+              ) : (
+                /* Flex column with a capped height, so children must be pinned with
+                   flexShrink:0 — otherwise they squash together instead of scrolling. */
+                <Stack
+                  spacing={1}
+                  sx={{
+                    maxHeight: { lg: 'calc(100dvh - 220px)' },
+                    overflowY: { lg: 'auto' },
+                    pr: { lg: 0.5 },
+                    '& > *': { flexShrink: 0 },
+                  }}
+                >
+                  {recentSales.map((s) => (
+                    <Card key={s.id} variant="outlined">
+                      <Stack direction="row" alignItems="center" spacing={0.5} sx={{ p: 0.75 }}>
+                        {/* Tap the sale itself to open its invoice (print / PDF / WhatsApp). */}
+                        <Box
+                          onClick={() => setBilled(s)}
+                          sx={{
+                            display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1, minWidth: 0,
+                            cursor: 'pointer', borderRadius: 1, p: 0.5,
+                            '&:hover': { bgcolor: 'action.hover' },
+                          }}
+                        >
+                          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                            <Typography sx={{ fontWeight: 700 }} noWrap>{customerName(s.customerId)}</Typography>
+                            <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+                              {s.saleNumber} · {s.date} · {s.lines.length} item(s)
+                            </Typography>
+                          </Box>
+                          <Typography sx={{ fontWeight: 800, whiteSpace: 'nowrap' }}>{formatCurrency(s.grossAmount)}</Typography>
+                          <PrintRoundedIcon fontSize="small" color="action" sx={{ flexShrink: 0 }} />
+                        </Box>
+                        <IconButton
+                          size="small"
+                          onClick={() => enterEdit(s.id)}
+                          disabled={editingId === s.id}
+                          aria-label={`Edit ${s.saleNumber}`}
+                        >
+                          <EditRoundedIcon fontSize="small" />
+                        </IconButton>
+                        {isAdmin && (
+                          <IconButton size="small" color="error" onClick={() => setConfirmDelete({ id: s.id, label: s.saleNumber })}>
+                            <DeleteOutlineRoundedIcon fontSize="small" />
+                          </IconButton>
+                        )}
+                      </Stack>
+                    </Card>
+                  ))}
                 </Stack>
-              ))}
-            </Stack>
-          )}
-        </CardContent>
-      </Card>
+              )}
+            </CardContent>
+          </Card>
+        </Box>
+      </Box>
 
       <Dialog open={Boolean(confirmDelete)} onClose={() => setConfirmDelete(null)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 800 }}>Delete sale {confirmDelete?.label}?</DialogTitle>
@@ -489,6 +578,58 @@ export default function SaleEntryPage() {
             {deleting ? 'Deleting…' : 'Delete'}
           </Button>
         </DialogActions>
+      </Dialog>
+
+      {/* Invoice — opens right after billing a sale, and when tapping an existing
+          one in Recent sales. */}
+      <Dialog open={Boolean(billed)} onClose={() => setBilled(null)} fullWidth maxWidth="xs">
+        {billed && (
+          <>
+            <DialogTitle sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <ReceiptLongRoundedIcon color="success" />
+              <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                Invoice {billed.saleNumber}
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 400 }}>
+                  {customerName(billed.customerId)} · {billed.date}
+                </Typography>
+              </Box>
+            </DialogTitle>
+            <DialogContent dividers>
+              <Stack direction="row" justifyContent="space-between" alignItems="baseline">
+                <Typography variant="body2" color="text.secondary">Net Amount</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                  {formatCurrency(billed.grossAmount, false)}
+                </Typography>
+              </Stack>
+              <Typography variant="caption" color="text.secondary">
+                {billed.lines.length} item(s) · {billed.paymentMode.toUpperCase()}
+              </Typography>
+            </DialogContent>
+            <DialogActions sx={{ p: 2, gap: 1 }}>
+              <Button color="inherit" onClick={() => setBilled(null)}>Close</Button>
+              <Button
+                startIcon={<PrintRoundedIcon />}
+                endIcon={<ExpandMoreRoundedIcon />}
+                onClick={(e) => setPrintAnchor(e.currentTarget)}
+              >
+                Print / PDF
+              </Button>
+              <PrintMenu
+                anchorEl={printAnchor}
+                onClose={() => setPrintAnchor(null)}
+                onPick={(paper) => output(billed, paper)}
+              />
+              <Button
+                variant="contained"
+                color="success"
+                startIcon={<WhatsAppIcon />}
+                onClick={() => shareOnWhatsApp(invoiceText(billed), (customers ?? []).find((c) => c.id === billed.customerId)?.mobile)}
+              >
+                WhatsApp
+              </Button>
+            </DialogActions>
+          </>
+        )}
       </Dialog>
 
       <CustomerFormDialog
@@ -510,7 +651,7 @@ export default function SaleEntryPage() {
           {toast}
         </Alert>
       </Snackbar>
-    </Stack>
+    </Box>
   );
 }
 

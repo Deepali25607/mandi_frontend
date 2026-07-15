@@ -79,7 +79,7 @@ export default function SalesModeCard({
               <Typography color="text.secondary" variant="body2">No {mode} sales in this period.</Typography>
             </Box>
           ) : (
-            <Stack sx={{ maxHeight: 220, overflowY: 'auto', pr: 0.5 }} divider={<Box sx={{ borderBottom: '1px solid', borderColor: 'divider' }} />}>
+            <Stack sx={{ maxHeight: 220, overflowY: 'auto', pr: 0.5, '& > *': { flexShrink: 0 } }} divider={<Box sx={{ borderBottom: '1px solid', borderColor: 'divider' }} />}>
               {data.rows.map((r) => (
                 <Stack key={r.saleNumber} direction="row" alignItems="center" spacing={1} sx={{ py: 0.85 }}>
                   <Box sx={{ minWidth: 0, flexGrow: 1 }}>

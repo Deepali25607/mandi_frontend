@@ -1,6 +1,8 @@
 import { apiSlice } from './apiSlice';
 import type { Branch, ManagedUser, Organization } from '@/types/finance';
-import type { AssignableScreen, CustomRole } from '@/types';
+import type { AssignableScreen, CustomRole, PrinterProfile } from '@/types';
+
+type PrinterBody = Partial<Omit<PrinterProfile, 'id'>>;
 
 export const adminApi = apiSlice.injectEndpoints({
   endpoints: (build) => ({
@@ -11,6 +13,24 @@ export const adminApi = apiSlice.injectEndpoints({
     updateOrganization: build.mutation<Organization, Partial<Organization>>({
       query: (body) => ({ url: '/organization', method: 'PATCH', body }),
       invalidatesTags: ['Organization'],
+    }),
+
+    // ---- Printers (universal print settings) ----
+    getPrinterProfiles: build.query<PrinterProfile[], void>({
+      query: () => '/printer-profiles',
+      providesTags: ['PrinterProfile'],
+    }),
+    createPrinterProfile: build.mutation<PrinterProfile, PrinterBody>({
+      query: (body) => ({ url: '/printer-profiles', method: 'POST', body }),
+      invalidatesTags: ['PrinterProfile'],
+    }),
+    updatePrinterProfile: build.mutation<PrinterProfile, { id: string; body: PrinterBody }>({
+      query: ({ id, body }) => ({ url: `/printer-profiles/${id}`, method: 'PATCH', body }),
+      invalidatesTags: ['PrinterProfile'],
+    }),
+    deletePrinterProfile: build.mutation<{ deleted: true }, string>({
+      query: (id) => ({ url: `/printer-profiles/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['PrinterProfile'],
     }),
 
     getBranches: build.query<Branch[], void>({
@@ -80,4 +100,8 @@ export const {
   useCreateCustomRoleMutation,
   useUpdateCustomRoleMutation,
   useDeleteCustomRoleMutation,
+  useGetPrinterProfilesQuery,
+  useCreatePrinterProfileMutation,
+  useUpdatePrinterProfileMutation,
+  useDeletePrinterProfileMutation,
 } = adminApi;

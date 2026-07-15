@@ -123,6 +123,17 @@ export interface CashInHandBreakdown {
   rows: CashInHandRow[];
 }
 
+/** A configurable printer so any thermal/roll model can be used. */
+export interface PrinterProfile {
+  id: string;
+  name: string;
+  widthMm: number;
+  fontSize: number;
+  marginMm: number;
+  isDefault: boolean;
+  isActive: boolean;
+}
+
 export interface SalesModeRow {
   date: string;
   saleNumber: string;

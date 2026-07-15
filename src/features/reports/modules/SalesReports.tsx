@@ -12,27 +12,27 @@ export function SalesRegisterReport() {
   const { from, to, setFrom, setTo } = useMonthRange();
   const [customerId, setCustomerId] = useState('');
 
+  // Customer-facing register: the buyer is billed the gross, so Net Amount is
+  // the gross with nothing deducted. Commission / market fee are supplier-side
+  // deductions and are never shown here (see the Supplier-wise Sales report).
   const columns: ReportColumn[] = [
     { key: 'date', label: 'Date' },
     { key: 'no', label: 'Invoice' },
     { key: 'customer', label: 'Customer' },
     { key: 'mode', label: 'Mode' },
-    { key: 'gross', label: 'Gross', currency: true, total: true },
-    { key: 'commission', label: 'Commission', currency: true, total: true },
-    { key: 'fee', label: 'Market Fee', currency: true, total: true },
-    { key: 'net', label: 'Net (supplier)', currency: true, total: true },
+    { key: 'net', label: 'Net Amount', currency: true, total: true },
   ];
 
   const rows: ReportRow[] = useMemo(() => (sales ?? [])
     .filter((s) => inRange(s.date, from, to) && (!customerId || s.customerId === customerId))
     .map((s) => ({
       date: s.date, no: s.saleNumber, customer: customerName(s.customerId), mode: s.paymentMode,
-      gross: s.grossAmount, commission: s.commissionAmount, fee: s.marketFeeAmount, net: s.netAmount,
+      net: s.grossAmount,
     })), [sales, from, to, customerId, customerName]);
 
   return (
     <ReportShell
-      title="Sales Register" description="All sales (invoices) with commission and market fee."
+      title="Sales Register" description="All sales (invoices) with the amount billed to each customer."
       meta={`${from} to ${to}`} columns={columns} rows={rows} loading={isLoading}
       filters={<>
         <DateRangeFilter from={from} to={to} onFrom={setFrom} onTo={setTo} />
@@ -55,6 +55,8 @@ export function SaleItemRegisterReport() {
     return (id: string | null) => (id ? m.get(id) ?? '—' : '—');
   }, [lots]);
 
+  // Customer-facing line register — same rule as the Sales Register: the buyer
+  // is billed the gross, so no commission / market fee is shown here.
   const columns: ReportColumn[] = [
     { key: 'date', label: 'Date' },
     { key: 'no', label: 'Invoice' },
@@ -64,10 +66,7 @@ export function SaleItemRegisterReport() {
     { key: 'qty', label: 'Qty', numeric: true, total: true },
     { key: 'weight', label: 'Weight (kg)', numeric: true, total: true },
     { key: 'rate', label: 'Rate', currency: true },
-    { key: 'gross', label: 'Gross', currency: true, total: true },
-    { key: 'commission', label: 'Commission', currency: true, total: true },
-    { key: 'fee', label: 'Market Fee', currency: true, total: true },
-    { key: 'net', label: 'Net (supplier)', currency: true, total: true },
+    { key: 'net', label: 'Net Amount', currency: true, total: true },
   ];
 
   const rows: ReportRow[] = useMemo(() => (sales ?? [])
@@ -79,7 +78,7 @@ export function SaleItemRegisterReport() {
           date: s.date, no: s.saleNumber, customer: customerName(s.customerId),
           item: itemName(l.itemId), lot: lotNumber(l.lotId),
           qty: l.quantity, weight: l.weight, rate: l.rate,
-          gross: l.grossAmount, commission: l.commissionAmount, fee: l.marketFeeAmount, net: l.netAmount,
+          net: l.grossAmount,
         })),
     ), [sales, from, to, customerId, itemId, customerName, itemName, lotNumber]);
 
@@ -99,7 +98,7 @@ export function SaleItemRegisterReport() {
 export function SupplierSaleRegisterReport() {
   const { data: sales, isLoading } = useGetSalesQuery();
   const { data: lots } = useGetStockLotsQuery();
-  const { items, suppliers, itemName, supplierName } = useLookups();
+  const { items, suppliers, itemName, supplierName, customerName } = useLookups();
   const { from, to, setFrom, setTo } = useMonthRange();
   const [supplierId, setSupplierId] = useState('');
   const [itemId, setItemId] = useState('');
@@ -109,6 +108,7 @@ export function SupplierSaleRegisterReport() {
   const columns: ReportColumn[] = [
     { key: 'date', label: 'Date' },
     { key: 'no', label: 'Invoice' },
+    { key: 'customer', label: 'Customer' },
     { key: 'supplier', label: 'Supplier' },
     { key: 'item', label: 'Item' },
     { key: 'lot', label: 'Lot No.' },
@@ -130,12 +130,13 @@ export function SupplierSaleRegisterReport() {
         .filter(({ lot }) => lot && (!supplierId || lot.supplierId === supplierId))
         .filter(({ line }) => !itemId || line.itemId === itemId)
         .map(({ line, lot }) => ({
-          date: s.date, no: s.saleNumber, supplier: supplierName(lot!.supplierId),
+          date: s.date, no: s.saleNumber, customer: customerName(s.customerId),
+          supplier: supplierName(lot!.supplierId),
           item: itemName(line.itemId), lot: lot!.lotNumber,
           qty: line.quantity, weight: line.weight, rate: line.rate,
           gross: line.grossAmount, commission: line.commissionAmount, fee: line.marketFeeAmount, net: line.netAmount,
         })),
-    ), [sales, lotById, from, to, supplierId, itemId, supplierName, itemName]);
+    ), [sales, lotById, from, to, supplierId, itemId, supplierName, itemName, customerName]);
 
   return (
     <ReportShell

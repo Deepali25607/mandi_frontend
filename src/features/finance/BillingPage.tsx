@@ -10,6 +10,9 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  ListItemText,
+  Menu,
+  MenuItem,
   Stack,
   Table,
   TableBody,
@@ -19,12 +22,15 @@ import {
   Typography,
 } from '@mui/material';
 import PrintRoundedIcon from '@mui/icons-material/PrintRounded';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import { useGetSalesQuery } from '@/api/operationsApi';
 import { useGetOrganizationQuery } from '@/api/adminApi';
 import { useLookups } from '@/utils/useLookups';
 import { formatCurrency } from '@/utils/format';
-import { printHtml, shareOnWhatsApp } from '@/utils/share';
+import { shareOnWhatsApp } from '@/utils/share';
+import { buildInvoiceData, downloadInvoicePdf, printThermalInvoice, type PaperSpec } from '@/utils/invoice';
+import PrintMenu from '@/components/common/PrintMenu';
 import type { Sale } from '@/types/domain';
 
 export default function BillingPage() {
@@ -32,6 +38,7 @@ export default function BillingPage() {
   const { data: org } = useGetOrganizationQuery();
   const { itemName, customers, customerName } = useLookups();
   const [active, setActive] = useState<Sale | null>(null);
+  const [printAnchor, setPrintAnchor] = useState<null | HTMLElement>(null);
 
   const customer = active ? customers.find((c) => c.id === active.customerId) : undefined;
 
@@ -43,29 +50,33 @@ export default function BillingPage() {
       '',
       ...sale.lines.map((l) => `${itemName(l.itemId)} — ${l.weight}kg @ ₹${l.rate} = ${formatCurrency(l.grossAmount, false)}`),
       '',
-      `*Total: ${formatCurrency(sale.grossAmount, false)}*`,
+      `*Net Amount: ${formatCurrency(sale.grossAmount, false)}*`,
       `Payment: ${sale.paymentMode.toUpperCase()}`,
     ].join('\n');
 
-  const printInvoice = (sale: Sale) => {
-    const rows = sale.lines
-      .map((l) => `<tr><td>${itemName(l.itemId)}</td><td class="right">${l.weight}</td><td class="right">₹${l.rate}</td><td class="right">${formatCurrency(l.grossAmount, false)}</td></tr>`)
-      .join('');
-    printHtml(`Invoice ${sale.saleNumber}`, `
-      <h2>${org?.name ?? 'Mandi ERP'}</h2>
-      <div class="muted">${org?.address ?? ''} ${org?.gstNumber ? '· GST ' + org.gstNumber : ''}</div>
-      <h3 style="margin-top:16px">Tax Invoice / Sale Parcha</h3>
-      <div>Invoice: <b>${sale.saleNumber}</b> &nbsp; Date: ${sale.date}</div>
-      <div>Customer: <b>${customerName(sale.customerId)}</b></div>
-      <table><thead><tr><th>Item</th><th class="right">Weight (kg)</th><th class="right">Rate</th><th class="right">Amount</th></tr></thead>
-      <tbody>${rows}</tbody></table>
-      <table style="margin-top:8px"><tbody>
-        <tr><td>Gross</td><td class="right">${formatCurrency(sale.grossAmount, false)}</td></tr>
-        <tr><td>Commission</td><td class="right">${formatCurrency(sale.commissionAmount, false)}</td></tr>
-        <tr><td>Market fee</td><td class="right">${formatCurrency(sale.marketFeeAmount, false)}</td></tr>
-        <tr class="total"><td>Net (supplier)</td><td class="right">${formatCurrency(sale.netAmount, false)}</td></tr>
-      </tbody></table>
-      <p class="muted" style="margin-top:16px">Payment mode: ${sale.paymentMode.toUpperCase()}</p>`);
+  const invoiceData = (sale: Sale) => {
+    const c = customers.find((x) => x.id === sale.customerId);
+    return buildInvoiceData({
+      sale,
+      company: {
+        name: org?.name ?? 'Mandi ERP',
+        address: org?.address,
+        gstNumber: org?.gstNumber,
+        mobile: org?.mobile,
+        email: org?.email,
+      },
+      customerName: customerName(sale.customerId),
+      customerMobile: c?.mobile,
+      customerArea: c?.area,
+      itemName,
+    });
+  };
+
+  /** `paper` null = PDF; otherwise print to that configured printer. */
+  const output = (sale: Sale, paper: PaperSpec | null) => {
+    setPrintAnchor(null);
+    if (!paper) downloadInvoicePdf(invoiceData(sale));
+    else printThermalInvoice(invoiceData(sale), paper);
   };
 
   return (
@@ -125,15 +136,25 @@ export default function BillingPage() {
                 </TableBody>
               </Table>
               <Divider sx={{ my: 1.5 }} />
+              {/* Customer's bill: gross only — commission/market fee are the
+                  supplier's deductions and stay off the buyer's invoice. */}
               <Stack spacing={0.5}>
-                <Row label="Gross" value={active.grossAmount} />
-                <Row label="Commission" value={active.commissionAmount} />
-                <Row label="Market fee" value={active.marketFeeAmount} />
-                <Row label="Net to supplier" value={active.netAmount} bold />
+                <Row label="Net Amount" value={active.grossAmount} bold />
               </Stack>
             </DialogContent>
             <DialogActions sx={{ p: 2, gap: 1 }}>
-              <Button startIcon={<PrintRoundedIcon />} onClick={() => printInvoice(active)}>Print</Button>
+              <Button
+                startIcon={<PrintRoundedIcon />}
+                endIcon={<ExpandMoreRoundedIcon />}
+                onClick={(e) => setPrintAnchor(e.currentTarget)}
+              >
+                Print / PDF
+              </Button>
+              <PrintMenu
+                anchorEl={printAnchor}
+                onClose={() => setPrintAnchor(null)}
+                onPick={(paper) => output(active, paper)}
+              />
               <Button
                 variant="contained"
                 color="success"

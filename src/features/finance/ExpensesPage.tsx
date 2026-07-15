@@ -167,7 +167,7 @@ export default function ExpensesPage() {
                   No expenses yet. Saved expenses show here.
                 </Typography>
               ) : (
-                <Stack spacing={1} sx={{ maxHeight: { lg: 'calc(100dvh - 200px)' }, overflowY: { lg: 'auto' }, pr: { lg: 0.5 } }}>
+                <Stack spacing={1} sx={{ maxHeight: { lg: 'calc(100dvh - 220px)' }, overflowY: { lg: 'auto' }, pr: { lg: 0.5 }, '& > *': { flexShrink: 0 } }}>
                   {recent.map((e) => (
                     <Card key={e.id} variant="outlined">
                       <CardActionArea onClick={() => setDetail(e)} sx={{ p: 1.25 }}>

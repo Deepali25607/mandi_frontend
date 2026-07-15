@@ -214,7 +214,7 @@ export default function DashboardPage() {
                 <Typography color="text.secondary">No pending dues — all customers are settled 🎉</Typography>
               </Box>
             ) : (
-              <Stack sx={{ height: 260, overflowY: 'auto', pr: 0.5 }}>
+              <Stack sx={{ height: 260, overflowY: 'auto', pr: 0.5, '& > *': { flexShrink: 0 } }}>
                 {pending.map((c) => (
                   <ListItemButton
                     key={c.customerId}
