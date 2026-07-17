@@ -69,6 +69,14 @@ export const financeApi = apiSlice.injectEndpoints({
       query: (body) => ({ url: '/cash-transfers', method: 'POST', body }),
       invalidatesTags: ['CashTransfer', 'BankAccount'],
     }),
+    updateCashTransfer: build.mutation<CashTransfer, { id: string; body: Partial<{ date: string; direction: 'cash_to_bank' | 'bank_to_cash'; bankAccountId: string; amount: number; notes?: string }> }>({
+      query: ({ id, body }) => ({ url: `/cash-transfers/${id}`, method: 'PATCH', body }),
+      invalidatesTags: ['CashTransfer', 'BankAccount'],
+    }),
+    deleteCashTransfer: build.mutation<{ deleted: true }, string>({
+      query: (id) => ({ url: `/cash-transfers/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['CashTransfer', 'BankAccount'],
+    }),
 
     // ---- Expenses ----
     getExpenses: build.query<Expense[], void>({
@@ -139,6 +147,7 @@ export const financeApi = apiSlice.injectEndpoints({
     }),
     getCashBook: build.query<CashBookResult, 'cash' | 'bank'>({
       query: (kind) => `/accounting/cash-book?kind=${kind}`,
+      providesTags: ['CashTransfer', 'Collection', 'Expense'],
     }),
     getTrialBalance: build.query<TrialBalanceResult, void>({
       query: () => '/accounting/trial-balance',
@@ -185,6 +194,8 @@ export const {
   useGetBankBalancesQuery,
   useGetCashTransfersQuery,
   useCreateCashTransferMutation,
+  useUpdateCashTransferMutation,
+  useDeleteCashTransferMutation,
   useGetExpensesQuery,
   useGetExpenseCategoriesQuery,
   useCreateExpenseMutation,
