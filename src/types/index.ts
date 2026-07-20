@@ -18,7 +18,8 @@ export type PlatformFeature =
   | 'crates'
   | 'challans'
   | 'adjustments'
-  | 'reports';
+  | 'reports'
+  | 'ai_assistant';
 
 export type SubscriptionStatus = 'trial' | 'active' | 'suspended' | 'expired' | 'cancelled';
 

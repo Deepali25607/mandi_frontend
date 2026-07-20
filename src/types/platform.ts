@@ -67,6 +67,8 @@ export interface PlatformOrgDetail {
   billingCycle: BillingCycle;
   subscriptionStart: string | null;
   renewalDate: string | null;
+  /** AI assistant override: true = force on, false = force off, null = follow plan. */
+  aiAssistant: boolean | null;
   createdAt: string;
   primaryAdmin: { name: string; username: string; mobile?: string } | null;
   usage: OrgUsage;
@@ -95,4 +97,5 @@ export interface UpdateOrgSubscription {
   subscriptionStatus?: SubscriptionStatus;
   billingCycle?: BillingCycle;
   renewalDate?: string | null;
+  aiAssistant?: boolean | null;
 }

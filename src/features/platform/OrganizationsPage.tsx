@@ -39,7 +39,7 @@ function OrgDetailDialog({ id, onClose, onSaved }: { id: string; onClose: () => 
   const { data: plans } = useGetPlansQuery();
   const [update, { isLoading: saving }] = useUpdatePlatformOrgMutation();
 
-  const [form, setForm] = useState({ planId: '', subscriptionStatus: 'trial' as SubscriptionStatus, billingCycle: 'monthly', renewalDate: '', isActive: true });
+  const [form, setForm] = useState({ planId: '', subscriptionStatus: 'trial' as SubscriptionStatus, billingCycle: 'monthly', renewalDate: '', isActive: true, aiAssistant: 'inherit' as 'inherit' | 'on' | 'off' });
 
   useEffect(() => {
     if (org) setForm({
@@ -48,6 +48,7 @@ function OrgDetailDialog({ id, onClose, onSaved }: { id: string; onClose: () => 
       billingCycle: org.billingCycle,
       renewalDate: org.renewalDate ?? '',
       isActive: org.isActive,
+      aiAssistant: org.aiAssistant === true ? 'on' : org.aiAssistant === false ? 'off' : 'inherit',
     });
   }, [org]);
 
@@ -58,10 +59,14 @@ function OrgDetailDialog({ id, onClose, onSaved }: { id: string; onClose: () => 
       billingCycle: form.billingCycle as 'monthly' | 'yearly',
       renewalDate: form.renewalDate || null,
       isActive: form.isActive,
+      aiAssistant: form.aiAssistant === 'inherit' ? null : form.aiAssistant === 'on',
     } }).unwrap();
     onSaved('Subscription updated');
     onClose();
   };
+
+  // What the org's selected plan says, to show the effective outcome of "Follow plan".
+  const planHasAi = (plans ?? []).find((p) => p.id === form.planId)?.features.includes('ai_assistant') ?? false;
 
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm">
@@ -103,6 +108,23 @@ function OrgDetailDialog({ id, onClose, onSaved }: { id: string; onClose: () => 
               </TextField>
             </Stack>
             <TextField label="Renewal date" type="date" value={form.renewalDate} onChange={(e) => setForm({ ...form, renewalDate: e.target.value })} InputLabelProps={{ shrink: true }} />
+            <TextField
+              select
+              label="AI Munim Assistant"
+              value={form.aiAssistant}
+              onChange={(e) => setForm({ ...form, aiAssistant: e.target.value as 'inherit' | 'on' | 'off' })}
+              helperText={
+                form.aiAssistant === 'inherit'
+                  ? `Follows the plan — currently ${planHasAi ? 'ENABLED' : 'DISABLED'} for this org's plan`
+                  : form.aiAssistant === 'on'
+                    ? 'Forced ON for this organization regardless of plan'
+                    : 'Forced OFF for this organization regardless of plan'
+              }
+            >
+              <MenuItem value="inherit">Follow plan</MenuItem>
+              <MenuItem value="on">Enabled (override)</MenuItem>
+              <MenuItem value="off">Disabled (override)</MenuItem>
+            </TextField>
             <FormControlLabel
               control={<Switch checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />}
               label={form.isActive ? 'Organization active' : 'Organization suspended'}

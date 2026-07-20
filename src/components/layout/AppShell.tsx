@@ -39,6 +39,7 @@ import { wallpaperSx } from '@/theme/wallpaper';
 import { sidebarPalette } from '@/theme/sidebar';
 import { DEFAULT_APPEARANCE } from '@/types/appearance';
 import SubscriptionBanner from '@/components/common/SubscriptionBanner';
+import AiAssistantBot from '@/components/common/AiAssistantBot';
 import { navItemsForRole, type NavItem } from './navConfig';
 
 const SIDEBAR_WIDTH = 264;
@@ -345,6 +346,10 @@ export default function AppShell() {
         <Divider sx={{ borderColor: sb.borderColor }} />
         {navList(go)}
       </Drawer>
+
+      {/* MandiAI — floating AI assistant. Paid plan feature, toggled per plan
+          by the platform Super Admin; hidden for orgs without it. */}
+      {user.organizationId && (user.features ?? []).includes('ai_assistant') && <AiAssistantBot />}
     </Box>
   );
 }

@@ -19,7 +19,10 @@ export default defineConfig({
     // with no CORS friction in dev.
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        // 127.0.0.1 (not localhost): another app on this machine listens on
+        // IPv6 [::]:5000, and Node resolves localhost to ::1 first — which
+        // silently proxies API calls to the wrong server.
+        target: 'http://127.0.0.1:5000',
         changeOrigin: true,
       },
     },
