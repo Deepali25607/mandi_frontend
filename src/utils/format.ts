@@ -8,10 +8,12 @@ export function formatCurrency(value: number, compact = true): string {
       maximumFractionDigits: 1,
     }).format(value);
   }
+  // Paise shown only when present: ₹1,234 stays clean, ₹1,234.56 keeps its decimals.
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(value);
 }
 

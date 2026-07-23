@@ -24,6 +24,10 @@ export const mastersApi = apiSlice.injectEndpoints({
       query: (id) => ({ url: `/items/${id}`, method: 'DELETE' }),
       invalidatesTags: ['Item'],
     }),
+    deleteItemPermanently: build.mutation<{ deleted: true }, string>({
+      query: (id) => ({ url: `/items/${id}/permanent`, method: 'DELETE' }),
+      invalidatesTags: ['Item'],
+    }),
 
     // ---- Suppliers ----
     getSuppliers: build.query<Supplier[], string | void>({
@@ -68,6 +72,7 @@ export const {
   useCreateItemMutation,
   useUpdateItemMutation,
   useDeleteItemMutation,
+  useDeleteItemPermanentlyMutation,
   useGetSuppliersQuery,
   useCreateSupplierMutation,
   useUpdateSupplierMutation,
