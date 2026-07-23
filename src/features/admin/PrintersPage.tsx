@@ -29,6 +29,7 @@ import {
   useUpdatePrinterProfileMutation,
 } from '@/api/adminApi';
 import { defaultFontFor, printThermalInvoice, type InvoiceData } from '@/utils/invoice';
+import ThermalPrinterSettings from './ThermalPrinterSettings';
 import type { PrinterProfile } from '@/types';
 
 /** Common roll widths — picking one prefills the width; "Custom" allows any value. */
@@ -142,6 +143,9 @@ export default function PrintersPage() {
           Add printer
         </Button>
       </Stack>
+
+      {/* Direct Bluetooth thermal printing (per-browser settings). */}
+      <ThermalPrinterSettings />
 
       {isLoading ? (
         <Typography color="text.secondary">Loading…</Typography>

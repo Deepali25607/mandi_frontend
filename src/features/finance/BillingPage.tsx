@@ -26,8 +26,9 @@ import { useGetOrganizationQuery } from '@/api/adminApi';
 import { useLookups } from '@/utils/useLookups';
 import { formatCurrency } from '@/utils/format';
 import { shareOnWhatsApp } from '@/utils/share';
-import { buildInvoiceData, downloadInvoicePdf, printThermalInvoice, type PaperSpec } from '@/utils/invoice';
-import PrintMenu from '@/components/common/PrintMenu';
+import { buildInvoiceData, downloadInvoicePdf, printThermalInvoice, type InvoiceData } from '@/utils/invoice';
+import PrintMenu, { type PrintTarget } from '@/components/common/PrintMenu';
+import ThermalPrintDialog from '@/components/common/ThermalPrintDialog';
 import type { Sale } from '@/types/domain';
 
 export default function BillingPage() {
@@ -36,6 +37,7 @@ export default function BillingPage() {
   const { itemName, customers, customerName } = useLookups();
   const [active, setActive] = useState<Sale | null>(null);
   const [printAnchor, setPrintAnchor] = useState<null | HTMLElement>(null);
+  const [thermalDoc, setThermalDoc] = useState<InvoiceData | null>(null);
 
   const customer = active ? customers.find((c) => c.id === active.customerId) : undefined;
 
@@ -69,10 +71,11 @@ export default function BillingPage() {
     });
   };
 
-  /** `paper` null = PDF; otherwise print to that configured printer. */
-  const output = (sale: Sale, paper: PaperSpec | null) => {
+  /** null = PDF; 'bluetooth' = thermal preview; otherwise the system dialog. */
+  const output = (sale: Sale, paper: PrintTarget) => {
     setPrintAnchor(null);
-    if (!paper) downloadInvoicePdf(invoiceData(sale));
+    if (paper === 'bluetooth') setThermalDoc(invoiceData(sale));
+    else if (!paper) downloadInvoicePdf(invoiceData(sale));
     else printThermalInvoice(invoiceData(sale), paper);
   };
 
@@ -152,6 +155,7 @@ export default function BillingPage() {
                 onClose={() => setPrintAnchor(null)}
                 onPick={(paper) => output(active, paper)}
               />
+              <ThermalPrintDialog doc={thermalDoc} onClose={() => setThermalDoc(null)} />
               <Button
                 variant="contained"
                 color="success"

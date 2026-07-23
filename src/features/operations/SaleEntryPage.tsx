@@ -44,8 +44,9 @@ import { useAppSelector } from '@/store/hooks';
 import CustomerFormDialog from '@/components/masters/CustomerFormDialog';
 import { formatCurrency } from '@/utils/format';
 import { shareOnWhatsApp } from '@/utils/share';
-import { buildInvoiceData, downloadInvoicePdf, printThermalInvoice, type PaperSpec } from '@/utils/invoice';
-import PrintMenu from '@/components/common/PrintMenu';
+import { buildInvoiceData, downloadInvoicePdf, printThermalInvoice, type InvoiceData } from '@/utils/invoice';
+import PrintMenu, { type PrintTarget } from '@/components/common/PrintMenu';
+import ThermalPrintDialog from '@/components/common/ThermalPrintDialog';
 import type { PaymentMode, Sale, StockLot } from '@/types/domain';
 
 interface LineDraft {
@@ -263,10 +264,14 @@ export default function SaleEntryPage() {
     });
   };
 
-  /** `paper` null = PDF; otherwise print to that configured printer. */
-  const output = (sale: Sale, paper: PaperSpec | null) => {
+  // Thermal print preview (Bluetooth path) — holds the fully-built document.
+  const [thermalDoc, setThermalDoc] = useState<InvoiceData | null>(null);
+
+  /** null = PDF; 'bluetooth' = thermal preview; otherwise the system dialog. */
+  const output = (sale: Sale, paper: PrintTarget) => {
     setPrintAnchor(null);
-    if (!paper) downloadInvoicePdf(invoiceData(sale));
+    if (paper === 'bluetooth') setThermalDoc(invoiceData(sale));
+    else if (!paper) downloadInvoicePdf(invoiceData(sale));
     else printThermalInvoice(invoiceData(sale), paper);
   };
 
@@ -619,6 +624,7 @@ export default function SaleEntryPage() {
                 onClose={() => setPrintAnchor(null)}
                 onPick={(paper) => output(billed, paper)}
               />
+              <ThermalPrintDialog doc={thermalDoc} onClose={() => setThermalDoc(null)} />
               <Button
                 variant="contained"
                 color="success"
