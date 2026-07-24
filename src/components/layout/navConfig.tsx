@@ -79,7 +79,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Suppliers', path: '/suppliers', icon: AgricultureRoundedIcon, roles: ['org_admin', 'accountant', 'purchase_operator'], section: 'Masters' },
   { label: 'Customers', path: '/customers', icon: GroupsRoundedIcon, roles: ['org_admin', 'accountant', 'sales_operator'], section: 'Masters' },
   { label: 'Items', path: '/items', icon: CategoryRoundedIcon, roles: ['org_admin', 'inventory_manager'], section: 'Masters' },
-  { label: 'Daily Prices', path: '/prices', icon: CurrencyRupeeRoundedIcon, roles: ['org_admin', 'inventory_manager', 'sales_operator'], section: 'Masters' },
+  { label: 'Daily Prices', path: '/prices', icon: CurrencyRupeeRoundedIcon, roles: ALL, section: 'Masters' },
 
   // Accounts
   { label: 'Billing', path: '/billing', icon: ReceiptLongRoundedIcon, roles: ['accountant', 'sales_operator'], section: 'Accounts' },
@@ -99,7 +99,8 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Users', path: '/users', icon: ManageAccountsRoundedIcon, roles: ['org_admin'], section: 'Admin' },
   { label: 'Roles & Access', path: '/roles', icon: AdminPanelSettingsRoundedIcon, roles: ['org_admin'], section: 'Admin' },
   { label: 'Appearance', path: '/appearance', icon: PaletteRoundedIcon, roles: ['org_admin'], section: 'Admin' },
-  { label: 'Printers', path: '/printers', icon: PrintRoundedIcon, roles: ['org_admin'], section: 'Admin' },
+  // Printers is device setup (paper width, Bluetooth) — every user needs it to print.
+  { label: 'Printers', path: '/printers', icon: PrintRoundedIcon, roles: ALL, section: 'Admin' },
   { label: 'Data Backup', path: '/backup', icon: BackupRoundedIcon, roles: ['org_admin'], section: 'Admin' },
   { label: 'Subscription', path: '/subscription', icon: WorkspacePremiumRoundedIcon, roles: ['org_admin'], section: 'Admin' },
 ];
@@ -124,8 +125,9 @@ export function canAccess(
   if (role === 'super_admin') return false;
   if (item.feature && !features.includes(item.feature)) return false;
   if (grantedScreens) {
-    // Custom-role user: gate strictly by granted screens (Dashboard always on).
-    return item.path === '/dashboard' || grantedScreens.includes(item.path);
+    // Custom-role user: gate strictly by granted screens (Dashboard and
+    // Printers are always on — every user must be able to set up printing).
+    return item.path === '/dashboard' || item.path === '/printers' || grantedScreens.includes(item.path);
   }
   if (role === 'org_admin') return true; // full operational access
   return item.roles.includes(role);

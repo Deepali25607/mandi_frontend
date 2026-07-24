@@ -6,20 +6,15 @@ import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
 import TrendingDownRoundedIcon from '@mui/icons-material/TrendingDownRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import { useGetItemsQuery, useGetLatestPricesQuery } from '@/api/mastersApi';
-import { useAppSelector } from '@/store/hooks';
 import { formatCurrency } from '@/utils/format';
-
-/** Roles that may update prices (mirrors the Daily Prices nav entry). */
-const CAN_UPDATE = new Set(['org_admin', 'inventory_manager', 'sales_operator']);
 
 /**
  * Today's Rates — the live daily-price board, visible to EVERY user on the
  * dashboard. Reflects the newest logged price per item, with the change vs the
- * previous rate.
+ * previous rate. Any user may update rates — every change is audit-logged.
  */
 export default function TodayRatesCard() {
   const navigate = useNavigate();
-  const role = useAppSelector((s) => s.auth.user?.role);
   const { data: items } = useGetItemsQuery();
   const { data: latest } = useGetLatestPricesQuery();
 
@@ -44,16 +39,14 @@ export default function TodayRatesCard() {
               Latest selling price per item — updates the moment anyone changes a rate.
             </Typography>
           </Box>
-          {role && CAN_UPDATE.has(role) && (
-            <Button size="small" variant="outlined" startIcon={<EditRoundedIcon />} onClick={() => navigate('/prices')}>
-              Update
-            </Button>
-          )}
+          <Button size="small" variant="outlined" startIcon={<EditRoundedIcon />} onClick={() => navigate('/prices')}>
+            Update
+          </Button>
         </Stack>
 
         {rates.length === 0 ? (
           <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
-            No rates set yet{role && CAN_UPDATE.has(role) ? ' — tap Update to set today’s prices.' : '.'}
+            No rates set yet — tap Update to set today’s prices.
           </Typography>
         ) : (
           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">

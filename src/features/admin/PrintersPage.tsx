@@ -29,6 +29,7 @@ import {
   useUpdatePrinterProfileMutation,
 } from '@/api/adminApi';
 import { defaultFontFor, printThermalInvoice, type InvoiceData } from '@/utils/invoice';
+import { useAppSelector } from '@/store/hooks';
 import ThermalPrinterSettings from './ThermalPrinterSettings';
 import type { PrinterProfile } from '@/types';
 
@@ -43,6 +44,9 @@ const COMMON_WIDTHS = [
 const blank = { name: '', widthMm: '80', fontSize: '10.5', marginMm: '2', isDefault: false };
 
 export default function PrintersPage() {
+  // Everyone can view profiles, test-print and set up their own Bluetooth
+  // printer; adding/editing the org-wide profiles stays admin-only.
+  const isAdmin = useAppSelector((s) => s.auth.user?.role) === 'org_admin';
   const { data: printers, isLoading } = useGetPrinterProfilesQuery();
   const [createPrinter, { isLoading: creating }] = useCreatePrinterProfileMutation();
   const [updatePrinter, { isLoading: updating }] = useUpdatePrinterProfileMutation();
@@ -139,9 +143,11 @@ export default function PrintersPage() {
             browser's print dialog, so any printer installed on the device works.
           </Typography>
         </Box>
-        <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={startAdd}>
-          Add printer
-        </Button>
+        {isAdmin && (
+          <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={startAdd}>
+            Add printer
+          </Button>
+        )}
       </Stack>
 
       {/* Direct Bluetooth thermal printing (per-browser settings). */}
@@ -151,7 +157,7 @@ export default function PrintersPage() {
         <Typography color="text.secondary">Loading…</Typography>
       ) : (printers ?? []).length === 0 ? (
         <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-          No printers yet. Add one to start printing invoices.
+          No printers yet.{isAdmin ? ' Add one to start printing invoices.' : ' Ask your admin to add one.'}
         </Typography>
       ) : (
         <Stack spacing={1}>
@@ -173,10 +179,14 @@ export default function PrintersPage() {
                     </Typography>
                   </Box>
                   <Button size="small" variant="outlined" onClick={() => testPrint(p)}>Test print</Button>
-                  <IconButton size="small" onClick={() => startEdit(p)}><EditRoundedIcon fontSize="small" /></IconButton>
-                  <IconButton size="small" color="error" onClick={() => remove(p)}>
-                    <DeleteOutlineRoundedIcon fontSize="small" />
-                  </IconButton>
+                  {isAdmin && (
+                    <>
+                      <IconButton size="small" onClick={() => startEdit(p)}><EditRoundedIcon fontSize="small" /></IconButton>
+                      <IconButton size="small" color="error" onClick={() => remove(p)}>
+                        <DeleteOutlineRoundedIcon fontSize="small" />
+                      </IconButton>
+                    </>
+                  )}
                 </Stack>
               </CardContent>
             </Card>
