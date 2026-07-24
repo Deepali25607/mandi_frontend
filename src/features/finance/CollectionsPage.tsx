@@ -24,8 +24,9 @@ import PaymentsRoundedIcon from '@mui/icons-material/PaymentsRounded';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
-import { useCreateCollectionMutation, useGetBankAccountsQuery, useGetCollectionsQuery, useGetCustomerOutstandingQuery } from '@/api/financeApi';
+import { useCreateCollectionMutation, useDeleteCollectionMutation, useGetBankAccountsQuery, useGetCollectionsQuery, useGetCustomerOutstandingQuery } from '@/api/financeApi';
 import { useGetOrganizationQuery } from '@/api/adminApi';
 import { useLookups } from '@/utils/useLookups';
 import { useAppSelector } from '@/store/hooks';
@@ -53,6 +54,9 @@ export default function CollectionsPage() {
   const { data: outstanding } = useGetCustomerOutstandingQuery();
   const { data: bankAccounts } = useGetBankAccountsQuery();
   const [createCollection, { isLoading: saving }] = useCreateCollectionMutation();
+  const [deleteCollection, { isLoading: deleting }] = useDeleteCollectionMutation();
+  const isAdmin = useAppSelector((s) => s.auth.user?.role) === 'org_admin';
+  const [confirmDelete, setConfirmDelete] = useState<Collection | null>(null);
 
   // Pending receivable per customer (opening + sales − collected).
   const pendingMap = useMemo(
@@ -131,6 +135,20 @@ export default function CollectionsPage() {
     const result = await shareReceiptOnWhatsApp(pdf, receiptText(c), mobileFor(c.customerId));
     if (result === 'downloaded') {
       setToast('Receipt PDF downloaded — attach it to the WhatsApp chat that just opened.');
+    }
+  };
+
+  const doDelete = async () => {
+    if (!confirmDelete) return;
+    try {
+      await deleteCollection(confirmDelete.id).unwrap();
+      setToast(`Receipt ${confirmDelete.collectionNumber} deleted — amount is due again`);
+      setConfirmDelete(null);
+      setDetail(null);
+    } catch (e) {
+      const msg = (e as { data?: { message?: string | string[] } })?.data?.message;
+      setError(Array.isArray(msg) ? msg.join(', ') : msg ?? 'Could not delete the receipt.');
+      setConfirmDelete(null);
     }
   };
 
@@ -297,6 +315,11 @@ export default function CollectionsPage() {
                   {detail.collectionNumber} · {detail.date}
                 </Typography>
               </Box>
+              {isAdmin && (
+                <IconButton size="small" color="error" onClick={() => setConfirmDelete(detail)}>
+                  <DeleteOutlineRoundedIcon fontSize="small" />
+                </IconButton>
+              )}
               <IconButton onClick={() => setDetail(null)} size="small"><CloseRoundedIcon /></IconButton>
             </DialogTitle>
             <DialogContent dividers>
@@ -325,6 +348,24 @@ export default function CollectionsPage() {
             </DialogActions>
           </>
         )}
+      </Dialog>
+
+      {/* ---- Delete confirm (admin only) ---- */}
+      <Dialog open={Boolean(confirmDelete)} onClose={() => setConfirmDelete(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800 }}>Delete receipt {confirmDelete?.collectionNumber}?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            This permanently deletes the {formatCurrency(confirmDelete?.amount ?? 0, false)} collection from{' '}
+            <strong>{confirmDelete ? customerName(confirmDelete.customerId) : ''}</strong>. The amount will show as
+            due again in their outstanding. This cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setConfirmDelete(null)}>Cancel</Button>
+          <Button variant="contained" color="error" onClick={doDelete} disabled={deleting}>
+            {deleting ? 'Deleting…' : 'Delete'}
+          </Button>
+        </DialogActions>
       </Dialog>
 
       <Snackbar open={Boolean(toast)} autoHideDuration={3500} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>

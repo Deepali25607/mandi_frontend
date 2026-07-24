@@ -37,6 +37,10 @@ export const financeApi = apiSlice.injectEndpoints({
       query: (body) => ({ url: '/collections', method: 'POST', body }),
       invalidatesTags: ['Collection', 'Outstanding', 'Dashboard'],
     }),
+    deleteCollection: build.mutation<{ deleted: true }, string>({
+      query: (id) => ({ url: `/collections/${id}`, method: 'DELETE' }),
+      invalidatesTags: ['Collection', 'Outstanding', 'Dashboard'],
+    }),
 
     // ---- Bank accounts ----
     getBankAccounts: build.query<BankAccount[], void>({
@@ -187,6 +191,7 @@ export const financeApi = apiSlice.injectEndpoints({
 export const {
   useGetCollectionsQuery,
   useCreateCollectionMutation,
+  useDeleteCollectionMutation,
   useGetBankAccountsQuery,
   useCreateBankAccountMutation,
   useUpdateBankAccountMutation,
