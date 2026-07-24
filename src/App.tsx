@@ -10,6 +10,7 @@ import AccountPage from '@/features/auth/AccountPage';
 import RequirePasswordChange from '@/components/common/RequirePasswordChange';
 import DashboardPage from '@/features/dashboard/DashboardPage';
 import ItemsPage from '@/features/masters/ItemsPage';
+import DailyPricesPage from '@/features/masters/DailyPricesPage';
 import SuppliersPage from '@/features/masters/SuppliersPage';
 import CustomersPage from '@/features/masters/CustomersPage';
 import InventoryPage from '@/features/inventory/InventoryPage';
@@ -53,6 +54,7 @@ const IMPLEMENTED = new Set([
   '/suppliers',
   '/customers',
   '/items',
+  '/prices',
   '/collections',
   '/billing',
   '/settlements',
@@ -125,6 +127,7 @@ export default function App() {
         <Route path="/suppliers" element={<SuppliersPage />} />
         <Route path="/customers" element={<CustomersPage />} />
         <Route path="/items" element={<ItemsPage />} />
+        <Route path="/prices" element={<DailyPricesPage />} />
         <Route path="/collections" element={<CollectionsPage />} />
         <Route path="/billing" element={<BillingPage />} />
         <Route path="/settlements" element={<SettlementsPage />} />
