@@ -18,6 +18,7 @@ import {
   ListItemIcon,
   ListItemText,
   Stack,
+  TextField,
   Typography,
 } from '@mui/material';
 import BackupRoundedIcon from '@mui/icons-material/BackupRounded';
@@ -27,6 +28,7 @@ import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import RestoreRoundedIcon from '@mui/icons-material/RestoreRounded';
 import UploadFileRoundedIcon from '@mui/icons-material/UploadFileRounded';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
+import DeleteForeverRoundedIcon from '@mui/icons-material/DeleteForeverRounded';
 import { useAppSelector } from '@/store/hooks';
 import { API_BASE } from '@/utils/apiBase';
 
@@ -53,7 +55,16 @@ export default function BackupPage() {
   const [ack, setAck] = useState(false);
   const [restoring, setRestoring] = useState(false);
 
-  const download = async () => {
+  // ---- Factory reset ----
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetPw, setResetPw] = useState('');
+  const [resetAck, setResetAck] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetDone, setResetDone] = useState<string | null>(null);
+
+  /** Returns true only when the backup file actually reached the device. */
+  const download = async (): Promise<boolean> => {
     setBusy(true); setError(null); setDone(null);
     try {
       const res = await fetch(`${API_BASE}/backup/export`, { headers: { Authorization: `Bearer ${token}` } });
@@ -72,10 +83,42 @@ export default function BackupPage() {
       URL.revokeObjectURL(url);
       const total = Object.values(payload?.meta?.recordCounts ?? {}).reduce((s: number, n) => s + (Number(n) || 0), 0);
       setDone(`Backup downloaded — ${total} records across ${Object.keys(payload?.meta?.recordCounts ?? {}).length} datasets.`);
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not create backup.');
+      return false;
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** Backup to the device FIRST, then wipe — never delete without the safety copy. */
+  const runReset = async () => {
+    setResetting(true); setResetError(null); setResetDone(null);
+    try {
+      const saved = await download();
+      if (!saved) {
+        throw new Error('The automatic backup could not be downloaded — reset cancelled, nothing was deleted.');
+      }
+      const res = await fetch(`${API_BASE}/backup/reset`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: resetPw }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = Array.isArray(payload?.message) ? payload.message.join(', ') : payload?.message;
+        throw new Error(msg || `Reset failed (${res.status})`);
+      }
+      const total = Object.values(payload?.wiped ?? {}).reduce((s: number, n) => s + (Number(n) || 0), 0);
+      setResetDone(`Company data deleted — ${total} records removed. Your backup was saved to this device. Refreshing…`);
+      setResetOpen(false);
+      setResetPw('');
+      setTimeout(() => window.location.assign(import.meta.env.BASE_URL), 2200);
+    } catch (e) {
+      setResetError(e instanceof Error ? e.message : 'Could not reset company data.');
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -118,8 +161,8 @@ export default function BackupPage() {
       const total = Object.values(payload?.restored ?? {}).reduce((s: number, n) => s + (Number(n) || 0), 0);
       setRestoreDone(`Restore complete — ${total} records reloaded. The app will refresh in a moment.`);
       setConfirmOpen(false);
-      // Hard refresh so every screen re-fetches the restored data.
-      setTimeout(() => window.location.assign('/dashboard'), 1800);
+      // Hard refresh (base-path aware) so every screen re-fetches the restored data.
+      setTimeout(() => window.location.assign(import.meta.env.BASE_URL), 1800);
     } catch (e) {
       setRestoreError(e instanceof Error ? e.message : 'Could not restore backup.');
     } finally {
@@ -225,6 +268,89 @@ export default function BackupPage() {
           </Stack>
         </CardContent>
       </Card>
+
+      {/* ---- Danger zone: factory reset ---- */}
+      <Card sx={{ borderColor: 'error.light' }}>
+        <CardContent>
+          <Stack spacing={2} alignItems="flex-start">
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Box sx={{ bgcolor: 'error.main', color: '#fff', width: 48, height: 48, borderRadius: 2, display: 'grid', placeItems: 'center' }}>
+                <DeleteForeverRoundedIcon />
+              </Box>
+              <Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Reset company data</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Start fresh: permanently delete every master and transaction in this company.
+                </Typography>
+              </Box>
+            </Box>
+
+            <Alert severity="error" sx={{ width: '100%' }}>
+              <AlertTitle sx={{ fontWeight: 800 }}>This deletes everything</AlertTitle>
+              All items, suppliers, customers, arrivals, stock, sales, collections, settlements, expenses,
+              bank accounts and price history will be <strong>permanently deleted</strong>. User accounts, logins and
+              settings are kept. A full backup is downloaded to this device <strong>automatically before</strong> anything
+              is deleted, and your password is required to confirm.
+            </Alert>
+
+            {resetError && <Alert severity="error" sx={{ width: '100%' }}>{resetError}</Alert>}
+            {resetDone && <Alert severity="success" sx={{ width: '100%' }}>{resetDone}</Alert>}
+
+            <Button
+              variant="contained"
+              color="error"
+              size="large"
+              startIcon={<DeleteForeverRoundedIcon />}
+              onClick={() => { setResetPw(''); setResetAck(false); setResetError(null); setResetOpen(true); }}
+            >
+              Reset company data…
+            </Button>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      {/* ---- Reset confirmation (password required) ---- */}
+      <Dialog open={resetOpen} onClose={() => !resetting && setResetOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <WarningAmberRoundedIcon color="error" /> Delete ALL company data?
+        </DialogTitle>
+        <DialogContent dividers>
+          <Alert severity="error" sx={{ mb: 1.5 }}>
+            Every master and transaction will be permanently deleted. Only user logins and settings survive.
+            This cannot be undone — except by restoring the backup that is downloaded first.
+          </Alert>
+          <Typography variant="body2" sx={{ mb: 1.5 }}>
+            A full backup will download to this device <strong>before</strong> deletion. If that download fails,
+            nothing is deleted.
+          </Typography>
+          <TextField
+            fullWidth
+            type="password"
+            label="Your password"
+            value={resetPw}
+            onChange={(e) => setResetPw(e.target.value)}
+            autoComplete="current-password"
+            helperText="Re-enter your login password to confirm it's really you"
+          />
+          <FormControlLabel
+            sx={{ mt: 1 }}
+            control={<Checkbox checked={resetAck} onChange={(e) => setResetAck(e.target.checked)} />}
+            label="I understand ALL company data will be permanently deleted."
+          />
+          {resetError && <Alert severity="error" sx={{ mt: 1 }}>{resetError}</Alert>}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setResetOpen(false)} disabled={resetting}>Cancel</Button>
+          <Button
+            variant="contained"
+            color="error"
+            disabled={!resetAck || !resetPw || resetting}
+            onClick={runReset}
+          >
+            {resetting ? 'Backing up & deleting…' : 'Download backup & delete all'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* ---- Confirmation ---- */}
       <Dialog open={confirmOpen} onClose={() => !restoring && setConfirmOpen(false)} maxWidth="xs" fullWidth>
