@@ -10,7 +10,7 @@ import HandshakeRoundedIcon from '@mui/icons-material/HandshakeRounded';
 import MoneyOffRoundedIcon from '@mui/icons-material/MoneyOffRounded';
 import type { PlatformFeature } from '@/types';
 import { SalesRegisterReport, SaleItemRegisterReport, SupplierSaleRegisterReport, ItemWiseSalesReport } from './modules/SalesReports';
-import { PurchaseRegisterReport, ItemWisePurchaseReport } from './modules/PurchaseReports';
+import { PurchaseRegisterReport, PurchaseTypeReport, ItemWisePurchaseReport } from './modules/PurchaseReports';
 import { StockSummaryReport, StockLotReport, ItemMasterReport } from './modules/InventoryReports';
 import { PriceHistoryReport } from './modules/PriceReports';
 import { CollectionRegisterReport } from './modules/CollectionReports';
@@ -58,6 +58,7 @@ export const REPORTS: ReportDef[] = [
   { key: 'item-wise-sales', module: 'Sales', title: 'Item-wise Sales', description: 'Quantity, weight and value sold per item.', Component: ItemWiseSalesReport },
 
   { key: 'purchase-register', module: 'Purchase', title: 'Purchase Register', description: 'Arrivals received from suppliers.', Component: PurchaseRegisterReport },
+  { key: 'purchase-type-register', module: 'Purchase', title: 'Purchase Type Register', description: 'Arrivals by purchase type — Bilty vs Commission.', Component: PurchaseTypeReport },
   { key: 'item-wise-purchase', module: 'Purchase', title: 'Item-wise Purchase', description: 'Quantity, weight and value purchased per item.', Component: ItemWisePurchaseReport },
 
   { key: 'stock-summary', module: 'Inventory', title: 'Stock Summary', description: 'Available stock and value by item.', Component: StockSummaryReport },

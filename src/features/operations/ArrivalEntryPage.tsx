@@ -42,7 +42,7 @@ import {
 import { useAppSelector } from '@/store/hooks';
 import SupplierFormDialog from '@/components/masters/SupplierFormDialog';
 import { formatCurrency } from '@/utils/format';
-import type { Arrival } from '@/types/domain';
+import type { Arrival, PurchaseType } from '@/types/domain';
 
 interface LineDraft {
   itemId: string;
@@ -67,6 +67,8 @@ export default function ArrivalEntryPage() {
 
   const [date, setDate] = useState(today());
   const [supplierId, setSupplierId] = useState('');
+  // Bilty = outright purchase, rate mandatory; Commission = consignment, rate optional.
+  const [purchaseType, setPurchaseType] = useState<PurchaseType>('bilty');
   const [vehicleNumber, setVehicleNumber] = useState('');
   const [transportCharges, setTransportCharges] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([emptyLine()]);
@@ -94,8 +96,14 @@ export default function ArrivalEntryPage() {
   const removeLine = (idx: number) =>
     setLines((prev) => (prev.length === 1 ? prev : prev.filter((_, i) => i !== idx)));
 
-  const validLines = lines.filter((l) => l.itemId && Number(l.weight) > 0 && Number(l.rate) > 0);
-  const canSave = Boolean(supplierId) && validLines.length > 0;
+  // A line counts once item + weight are entered; whether rate is also needed
+  // depends on the purchase type, so validation follows the selector live.
+  const rateRequired = purchaseType === 'bilty';
+  const filledLines = lines.filter((l) => l.itemId && Number(l.weight) > 0);
+  const lineMissingRate = (l: LineDraft) =>
+    rateRequired && Boolean(l.itemId) && Number(l.weight) > 0 && !(Number(l.rate) > 0);
+  const missingRates = lines.some(lineMissingRate);
+  const canSave = Boolean(supplierId) && filledLines.length > 0 && !missingRates;
   const busy = isLoading || updating;
 
   const resetForm = () => {
@@ -105,6 +113,7 @@ export default function ArrivalEntryPage() {
     setLockReason(null);
     setDate(today());
     setSupplierId('');
+    setPurchaseType('bilty');
     setVehicleNumber('');
     setTransportCharges('');
     setLines([emptyLine()]);
@@ -120,6 +129,7 @@ export default function ArrivalEntryPage() {
       setEditNumber(a.arrivalNumber);
       setDate(a.date);
       setSupplierId(a.supplierId);
+      setPurchaseType(a.purchaseType ?? 'bilty');
       setVehicleNumber(a.vehicleNumber ?? '');
       setTransportCharges(a.transportCharges ? String(a.transportCharges) : '');
       setLines(
@@ -163,19 +173,21 @@ export default function ArrivalEntryPage() {
         const body = linesLocked
           ? {
               date,
+              purchaseType,
               vehicleNumber: vehicleNumber || undefined,
               transportCharges: Number(transportCharges) || 0,
             }
           : {
               date,
               supplierId,
+              purchaseType,
               vehicleNumber: vehicleNumber || undefined,
               transportCharges: Number(transportCharges) || 0,
-              lines: validLines.map((l) => ({
+              lines: filledLines.map((l) => ({
                 itemId: l.itemId,
                 quantity: Number(l.quantity) || 0,
                 weight: Number(l.weight),
-                rate: Number(l.rate),
+                rate: Number(l.rate) || 0,
               })),
             };
         const a = await updateArrival({ id: editingId, body }).unwrap();
@@ -185,13 +197,14 @@ export default function ArrivalEntryPage() {
         const arrival = await createArrival({
           date,
           supplierId,
+          purchaseType,
           vehicleNumber: vehicleNumber || undefined,
           transportCharges: Number(transportCharges) || 0,
-          lines: validLines.map((l) => ({
+          lines: filledLines.map((l) => ({
             itemId: l.itemId,
             quantity: Number(l.quantity) || 0,
             weight: Number(l.weight),
-            rate: Number(l.rate),
+            rate: Number(l.rate) || 0,
           })),
         }).unwrap();
         setToast(`Arrival ${arrival.arrivalNumber} saved · ${arrival.lines.length} lot(s) created`);
@@ -230,6 +243,17 @@ export default function ArrivalEntryPage() {
             <Stack spacing={2}>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <TextField label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} InputLabelProps={{ shrink: true }} />
+                <TextField
+                  select
+                  label="Purchase type"
+                  value={purchaseType}
+                  onChange={(e) => setPurchaseType(e.target.value as PurchaseType)}
+                  helperText={rateRequired ? 'Rate is mandatory for every item' : 'Rate optional — supplier settled from sales'}
+                  sx={{ minWidth: 200 }}
+                >
+                  <MenuItem value="bilty">Bilty</MenuItem>
+                  <MenuItem value="commission">Commission</MenuItem>
+                </TextField>
                 <TextField label="Vehicle number" value={vehicleNumber} onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())} placeholder="HR55-AB-1234" />
               </Stack>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -288,7 +312,17 @@ export default function ArrivalEntryPage() {
                   <Stack direction="row" spacing={1.5}>
                     <TextField label="Bags/Qty" type="number" size="small" value={line.quantity} disabled={linesLocked} onChange={(e) => updateLine(idx, { quantity: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
                     <TextField label="Weight (kg)" type="number" size="small" value={line.weight} disabled={linesLocked} onChange={(e) => updateLine(idx, { weight: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
-                    <TextField label="Rate ₹" type="number" size="small" value={line.rate} disabled={linesLocked} onChange={(e) => updateLine(idx, { rate: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
+                    <TextField
+                      label={rateRequired ? 'Rate ₹ *' : 'Rate ₹ (optional)'}
+                      type="number"
+                      size="small"
+                      value={line.rate}
+                      disabled={linesLocked}
+                      onChange={(e) => updateLine(idx, { rate: e.target.value })}
+                      inputProps={{ inputMode: 'decimal' }}
+                      error={lineMissingRate(line)}
+                      helperText={lineMissingRate(line) ? 'Required for Bilty' : undefined}
+                    />
                   </Stack>
                 </Stack>
               </CardContent>
@@ -358,7 +392,7 @@ export default function ArrivalEntryPage() {
                         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                           <Typography sx={{ fontWeight: 700 }} noWrap>{supplierName(a.supplierId)}</Typography>
                           <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
-                            {a.arrivalNumber} · {a.date} · {a.lines.length} lot(s) · {a.totalWeight}kg{a.vehicleNumber ? ` · ${a.vehicleNumber}` : ''}
+                            {a.arrivalNumber} · {a.date} · {a.purchaseType === 'commission' ? 'Commission' : 'Bilty'} · {a.lines.length} lot(s) · {a.totalWeight}kg{a.vehicleNumber ? ` · ${a.vehicleNumber}` : ''}
                           </Typography>
                         </Box>
                         <Typography sx={{ fontWeight: 800, whiteSpace: 'nowrap' }}>{formatCurrency(a.totalValue)}</Typography>
@@ -382,7 +416,7 @@ export default function ArrivalEntryPage() {
               <Box sx={{ flexGrow: 1 }}>
                 {supplierName(detail.supplierId)}
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 400 }}>
-                  {detail.arrivalNumber} · {detail.date}{detail.vehicleNumber ? ` · ${detail.vehicleNumber}` : ''}
+                  {detail.arrivalNumber} · {detail.date} · {detail.purchaseType === 'commission' ? 'Commission' : 'Bilty'}{detail.vehicleNumber ? ` · ${detail.vehicleNumber}` : ''}
                 </Typography>
               </Box>
               <Button size="small" variant="outlined" startIcon={<EditRoundedIcon />} onClick={() => enterEdit(detail.id)}>

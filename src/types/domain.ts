@@ -70,6 +70,8 @@ export interface StockLot {
   itemId: string;
   supplierId: string;
   arrivalId: string;
+  /** Inherited from the arrival this lot came from. */
+  purchaseType?: PurchaseType;
   rate: number;
   qtyArrived: number;
   weightArrived: number;
@@ -100,11 +102,15 @@ export interface ArrivalLine {
   amount: number;
 }
 
+/** Bilty = outright purchase (rate mandatory); Commission = consignment (rate optional). */
+export type PurchaseType = 'bilty' | 'commission';
+
 export interface Arrival {
   id: string;
   arrivalNumber: string;
   date: string;
   supplierId: string;
+  purchaseType?: PurchaseType;
   vehicleNumber?: string;
   transportCharges: number;
   notes?: string;
@@ -158,6 +164,7 @@ export interface Sale {
 export interface CreateArrivalPayload {
   date: string;
   supplierId: string;
+  purchaseType?: PurchaseType;
   vehicleNumber?: string;
   transportCharges?: number;
   notes?: string;

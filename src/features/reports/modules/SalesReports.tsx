@@ -5,6 +5,7 @@ import {
   DateRangeFilter, FilterSelect, ReportShell, inRange, useMonthRange,
   type ReportColumn, type ReportRow,
 } from '../shared';
+import { PURCHASE_TYPE_OPTIONS, purchaseTypeLabel } from './PurchaseReports';
 
 export function SalesRegisterReport() {
   const { data: sales, isLoading } = useGetSalesQuery();
@@ -102,6 +103,7 @@ export function SupplierSaleRegisterReport() {
   const { from, to, setFrom, setTo } = useMonthRange();
   const [supplierId, setSupplierId] = useState('');
   const [itemId, setItemId] = useState('');
+  const [purchaseType, setPurchaseType] = useState('');
 
   const lotById = useMemo(() => new Map((lots ?? []).map((l) => [l.id, l])), [lots]);
 
@@ -112,6 +114,7 @@ export function SupplierSaleRegisterReport() {
     { key: 'supplier', label: 'Supplier' },
     { key: 'item', label: 'Item' },
     { key: 'lot', label: 'Lot No.' },
+    { key: 'type', label: 'Purchase Type' },
     { key: 'qty', label: 'Qty', numeric: true, total: true },
     { key: 'weight', label: 'Weight (kg)', numeric: true, total: true },
     { key: 'rate', label: 'Rate', currency: true },
@@ -129,14 +132,16 @@ export function SupplierSaleRegisterReport() {
         .map((l) => ({ line: l, lot: l.lotId ? lotById.get(l.lotId) : undefined }))
         .filter(({ lot }) => lot && (!supplierId || lot.supplierId === supplierId))
         .filter(({ line }) => !itemId || line.itemId === itemId)
+        .filter(({ lot }) => !purchaseType || (lot!.purchaseType ?? 'bilty') === purchaseType)
         .map(({ line, lot }) => ({
           date: s.date, no: s.saleNumber, customer: customerName(s.customerId),
           supplier: supplierName(lot!.supplierId),
           item: itemName(line.itemId), lot: lot!.lotNumber,
+          type: purchaseTypeLabel(lot!.purchaseType),
           qty: line.quantity, weight: line.weight, rate: line.rate,
           gross: line.grossAmount, commission: line.commissionAmount, fee: line.marketFeeAmount, net: line.netAmount,
         })),
-    ), [sales, lotById, from, to, supplierId, itemId, supplierName, itemName, customerName]);
+    ), [sales, lotById, from, to, supplierId, itemId, purchaseType, supplierName, itemName, customerName]);
 
   return (
     <ReportShell
@@ -145,6 +150,7 @@ export function SupplierSaleRegisterReport() {
       filters={<>
         <DateRangeFilter from={from} to={to} onFrom={setFrom} onTo={setTo} />
         <FilterSelect label="Supplier" value={supplierId} onChange={setSupplierId} options={suppliers.map((s) => ({ value: s.id, label: s.name }))} />
+        <FilterSelect label="Purchase type" value={purchaseType} onChange={setPurchaseType} options={PURCHASE_TYPE_OPTIONS} />
         <FilterSelect label="Item" value={itemId} onChange={setItemId} options={items.map((i) => ({ value: i.id, label: i.name }))} />
       </>}
     />

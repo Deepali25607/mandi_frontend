@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useGetStockLotsQuery, useGetStockSummaryQuery } from '@/api/operationsApi';
 import { useLookups } from '@/utils/useLookups';
 import { FilterSelect, ReportShell, type ReportColumn, type ReportRow } from '../shared';
+import { PURCHASE_TYPE_OPTIONS, purchaseTypeLabel } from './PurchaseReports';
 
 export function StockSummaryReport() {
   const { data: summary, isLoading } = useGetStockSummaryQuery();
@@ -34,12 +35,14 @@ export function StockLotReport() {
   const [itemId, setItemId] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [status, setStatus] = useState('');
+  const [purchaseType, setPurchaseType] = useState('');
 
   const columns: ReportColumn[] = [
     { key: 'lot', label: 'Lot No.' },
     { key: 'date', label: 'Date' },
     { key: 'item', label: 'Item' },
     { key: 'supplier', label: 'Supplier' },
+    { key: 'type', label: 'Purchase Type' },
     { key: 'rate', label: 'Rate', currency: true },
     { key: 'qtyArr', label: 'Qty in', numeric: true, total: true },
     { key: 'qtyAvail', label: 'Qty avail.', numeric: true, total: true },
@@ -53,16 +56,18 @@ export function StockLotReport() {
     .filter((l) =>
       (!itemId || l.itemId === itemId) &&
       (!supplierId || l.supplierId === supplierId) &&
-      (!status || l.status === status),
+      (!status || l.status === status) &&
+      (!purchaseType || (l.purchaseType ?? 'bilty') === purchaseType),
     )
     .map((l) => ({
       lot: l.lotNumber, date: l.date, item: itemName(l.itemId), supplier: supplierName(l.supplierId),
+      type: purchaseTypeLabel(l.purchaseType),
       rate: l.rate, qtyArr: l.qtyArrived, qtyAvail: l.qtyAvailable,
       wtArr: l.weightArrived, wtAvail: l.weightAvailable,
       // Value of stock still on hand for this lot (available weight × cost rate).
       value: Math.round(l.weightAvailable * l.rate * 100) / 100,
       status: l.status,
-    })), [lots, itemId, supplierId, status, itemName, supplierName]);
+    })), [lots, itemId, supplierId, status, purchaseType, itemName, supplierName]);
 
   return (
     <ReportShell
@@ -71,6 +76,7 @@ export function StockLotReport() {
       filters={<>
         <FilterSelect label="Item" value={itemId} onChange={setItemId} options={items.map((i) => ({ value: i.id, label: i.name }))} />
         <FilterSelect label="Supplier" value={supplierId} onChange={setSupplierId} options={suppliers.map((s) => ({ value: s.id, label: s.name }))} />
+        <FilterSelect label="Purchase type" value={purchaseType} onChange={setPurchaseType} options={PURCHASE_TYPE_OPTIONS} />
         <FilterSelect label="Status" value={status} onChange={setStatus} options={[{ value: 'active', label: 'Active' }, { value: 'closed', label: 'Closed' }]} />
       </>}
     />
