@@ -29,7 +29,7 @@ import PrintRoundedIcon from '@mui/icons-material/PrintRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
-import { useGetCustomersQuery, useGetItemsQuery } from '@/api/mastersApi';
+import { useGetCustomersQuery, useGetItemsQuery, useGetLatestPricesQuery } from '@/api/mastersApi';
 import {
   useCreateSaleMutation,
   useDeleteSaleMutation,
@@ -104,6 +104,7 @@ export default function SaleEntryPage() {
   const [printAnchor, setPrintAnchor] = useState<null | HTMLElement>(null);
 
   const { data: items } = useGetItemsQuery();
+  const { data: latestPrices } = useGetLatestPricesQuery();
   const { data: customers } = useGetCustomersQuery();
   const { data: org } = useGetOrganizationQuery();
   // While editing, load ALL lots so the sale's already-drawn (possibly closed)
@@ -152,15 +153,18 @@ export default function SaleEntryPage() {
   const updateLine = (idx: number, patch: Partial<LineDraft>) =>
     setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
 
-  // Selecting an item auto-fills commission/fee defaults and picks the first lot.
+  // Selecting an item auto-fills commission/fee defaults, the first lot and
+  // today's selling rate from the Daily Prices board (still editable).
   const onSelectItem = (idx: number, itemId: string) => {
     const item = activeItems.find((i) => i.id === itemId);
     const itemLots = lotsByItem.get(itemId) ?? [];
+    const todayRate = latestPrices?.find((p) => p.itemId === itemId)?.price;
     updateLine(idx, {
       itemId,
       lotId: itemLots[0]?.id ?? '',
       commissionPct: item ? String(item.defaultCommissionPct) : '',
       marketFeePct: item ? String(item.defaultMarketFeePct) : '',
+      ...(todayRate !== undefined ? { rate: String(todayRate) } : {}),
     });
   };
 

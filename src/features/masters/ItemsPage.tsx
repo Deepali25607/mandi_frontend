@@ -17,8 +17,10 @@ import {
   useDeleteItemMutation,
   useDeleteItemPermanentlyMutation,
   useGetItemsQuery,
+  useGetLatestPricesQuery,
   useUpdateItemMutation,
 } from '@/api/mastersApi';
+import { formatCurrency } from '@/utils/format';
 import MasterList from '@/components/common/MasterList';
 import EntityCard from '@/components/common/EntityCard';
 import { useAppSelector } from '@/store/hooks';
@@ -49,6 +51,8 @@ const blankForm = {
 export default function ItemsPage() {
   const [search, setSearch] = useState('');
   const { data, isLoading } = useGetItemsQuery(search || undefined);
+  const { data: latestPrices } = useGetLatestPricesQuery();
+  const priceOf = (itemId: string) => latestPrices?.find((p) => p.itemId === itemId)?.price;
   const [createItem, { isLoading: creating }] = useCreateItemMutation();
   const [updateItem, { isLoading: updating }] = useUpdateItemMutation();
   const [deleteItem] = useDeleteItemMutation();
@@ -120,9 +124,16 @@ export default function ItemsPage() {
               ...(item.isActive ? [] : [{ label: 'Archived' as const, color: 'default' as const }]),
             ]}
             meta={
-              <Typography variant="caption" color="text.secondary">
-                Comm {item.defaultCommissionPct}% · Fee {item.defaultMarketFeePct}%
-              </Typography>
+              <>
+                {priceOf(item.id) !== undefined && (
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main' }}>
+                    {formatCurrency(priceOf(item.id)!, false)}/{item.unit}
+                  </Typography>
+                )}
+                <Typography variant="caption" color="text.secondary">
+                  Comm {item.defaultCommissionPct}% · Fee {item.defaultMarketFeePct}%
+                </Typography>
+              </>
             }
             onEdit={() => openEdit(item)}
             onArchive={item.isActive ? () => deleteItem(item.id) : undefined}

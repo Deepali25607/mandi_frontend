@@ -14,6 +14,29 @@ export interface Item {
   isActive: boolean;
 }
 
+/** Newest selling price of an item (from the append-only price log). */
+export interface LatestItemPrice {
+  itemId: string;
+  price: number;
+  previousPrice: number | null;
+  effectiveDate: string;
+  updatedAt: string;
+}
+
+/** One row of the org-wide price-change log (report). */
+export type ItemPriceLogRow = ItemPriceHistoryRow & { itemId: string };
+
+/** One entry of an item's price-change audit trail. */
+export interface ItemPriceHistoryRow {
+  id: string;
+  price: number;
+  previousPrice: number | null;
+  effectiveDate: string;
+  notes?: string;
+  updatedBy: string;
+  createdAt: string;
+}
+
 export interface Supplier {
   id: string;
   code: string;

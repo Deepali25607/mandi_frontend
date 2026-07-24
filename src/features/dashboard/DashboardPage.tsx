@@ -42,6 +42,7 @@ import { useAppSelector } from '@/store/hooks';
 import KpiCard from '@/components/common/KpiCard';
 import ChartCard from '@/components/common/ChartCard';
 import SalesModeCard from './SalesModeCard';
+import TodayRatesCard from './TodayRatesCard';
 import { formatCurrency } from '@/utils/format';
 import type { CustomerOutstandingRow } from '@/types/finance';
 
@@ -106,6 +107,9 @@ export default function DashboardPage() {
           Could not load dashboard data.
         </Alert>
       )}
+
+      {/* Today's daily selling rates — first thing every user sees */}
+      <TodayRatesCard />
 
       {/* KPI grid */}
       <Box

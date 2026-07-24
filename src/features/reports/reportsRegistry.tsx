@@ -12,6 +12,7 @@ import type { PlatformFeature } from '@/types';
 import { SalesRegisterReport, SaleItemRegisterReport, SupplierSaleRegisterReport, ItemWiseSalesReport } from './modules/SalesReports';
 import { PurchaseRegisterReport, ItemWisePurchaseReport } from './modules/PurchaseReports';
 import { StockSummaryReport, StockLotReport, ItemMasterReport } from './modules/InventoryReports';
+import { PriceHistoryReport } from './modules/PriceReports';
 import { CollectionRegisterReport } from './modules/CollectionReports';
 import {
   TrialBalanceReport, CashBookReport, BankBookReport, CustomerLedgerReport, SupplierLedgerReport,
@@ -62,6 +63,7 @@ export const REPORTS: ReportDef[] = [
   { key: 'stock-summary', module: 'Inventory', title: 'Stock Summary', description: 'Available stock and value by item.', Component: StockSummaryReport },
   { key: 'stock-lots', module: 'Inventory', title: 'Stock Lot Register', description: 'Lot-wise inventory with drawdown.', Component: StockLotReport },
   { key: 'item-master', module: 'Inventory', title: 'Item Master', description: 'Items with default commission and fee.', Component: ItemMasterReport },
+  { key: 'price-history', module: 'Inventory', title: 'Price History', description: 'Audit log of daily selling-price changes with user and time.', Component: PriceHistoryReport },
 
   { key: 'collection-register', module: 'Collection', title: 'Collection Register', description: 'Customer payments received.', Component: CollectionRegisterReport },
 

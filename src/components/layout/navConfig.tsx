@@ -15,6 +15,7 @@ import Inventory2RoundedIcon from '@mui/icons-material/Inventory2Rounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import AgricultureRoundedIcon from '@mui/icons-material/AgricultureRounded';
 import CategoryRoundedIcon from '@mui/icons-material/CategoryRounded';
+import CurrencyRupeeRoundedIcon from '@mui/icons-material/CurrencyRupeeRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
 import AccountBalanceRoundedIcon from '@mui/icons-material/AccountBalanceRounded';
@@ -78,6 +79,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Suppliers', path: '/suppliers', icon: AgricultureRoundedIcon, roles: ['org_admin', 'accountant', 'purchase_operator'], section: 'Masters' },
   { label: 'Customers', path: '/customers', icon: GroupsRoundedIcon, roles: ['org_admin', 'accountant', 'sales_operator'], section: 'Masters' },
   { label: 'Items', path: '/items', icon: CategoryRoundedIcon, roles: ['org_admin', 'inventory_manager'], section: 'Masters' },
+  { label: 'Daily Prices', path: '/prices', icon: CurrencyRupeeRoundedIcon, roles: ['org_admin', 'inventory_manager', 'sales_operator'], section: 'Masters' },
 
   // Accounts
   { label: 'Billing', path: '/billing', icon: ReceiptLongRoundedIcon, roles: ['accountant', 'sales_operator'], section: 'Accounts' },

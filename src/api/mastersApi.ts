@@ -1,5 +1,5 @@
 import { apiSlice } from './apiSlice';
-import type { Customer, Item, Supplier } from '@/types/domain';
+import type { Customer, Item, ItemPriceHistoryRow, ItemPriceLogRow, LatestItemPrice, Supplier } from '@/types/domain';
 
 type ItemBody = Partial<Item>;
 type SupplierBody = Partial<Supplier>;
@@ -27,6 +27,24 @@ export const mastersApi = apiSlice.injectEndpoints({
     deleteItemPermanently: build.mutation<{ deleted: true }, string>({
       query: (id) => ({ url: `/items/${id}/permanent`, method: 'DELETE' }),
       invalidatesTags: ['Item'],
+    }),
+
+    // ---- Daily selling prices ----
+    getLatestPrices: build.query<LatestItemPrice[], void>({
+      query: () => '/item-prices/latest',
+      providesTags: ['ItemPrice'],
+    }),
+    getPriceHistory: build.query<ItemPriceHistoryRow[], string>({
+      query: (itemId) => `/item-prices/history/${itemId}`,
+      providesTags: ['ItemPrice'],
+    }),
+    getPriceLog: build.query<ItemPriceLogRow[], void>({
+      query: () => '/item-prices/log',
+      providesTags: ['ItemPrice'],
+    }),
+    setItemPrice: build.mutation<{ changed: boolean }, { itemId: string; price: number; effectiveDate?: string; notes?: string }>({
+      query: (body) => ({ url: '/item-prices', method: 'POST', body }),
+      invalidatesTags: ['ItemPrice'],
     }),
 
     // ---- Suppliers ----
@@ -73,6 +91,10 @@ export const {
   useUpdateItemMutation,
   useDeleteItemMutation,
   useDeleteItemPermanentlyMutation,
+  useGetLatestPricesQuery,
+  useGetPriceHistoryQuery,
+  useGetPriceLogQuery,
+  useSetItemPriceMutation,
   useGetSuppliersQuery,
   useCreateSupplierMutation,
   useUpdateSupplierMutation,
