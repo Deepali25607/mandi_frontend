@@ -21,6 +21,7 @@ import { useLoginMutation } from '@/api/authApi';
 import { useAppDispatch } from '@/store/hooks';
 import { setCredentials } from '@/store/authSlice';
 import { AuthLayout } from './AuthLayout';
+import AndroidAppButton from './AndroidAppButton';
 
 function errorMessage(err: unknown, fallback: string): string {
   const data = (err as { data?: { message?: string | string[] } })?.data;
@@ -103,6 +104,11 @@ export default function LoginPage() {
               <Button component={RouterLink} to="/register" variant="outlined" size="large">
                 Create an organization account
               </Button>
+
+              <Divider>
+                <Typography variant="caption" color="text.secondary">Use Mandi on your phone</Typography>
+              </Divider>
+              <AndroidAppButton />
             </Stack>
           </form>
         </CardContent>
