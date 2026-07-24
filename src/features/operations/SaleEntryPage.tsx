@@ -55,6 +55,8 @@ interface LineDraft {
   quantity: string;
   weight: string;
   rate: string;
+  /** Dual rate (Commission lots, admin only): actual rate payable to the supplier. */
+  supplierRate: string;
   commissionPct: string;
   marketFeePct: string;
 }
@@ -65,6 +67,7 @@ const emptyLine = (): LineDraft => ({
   quantity: '',
   weight: '',
   rate: '',
+  supplierRate: '',
   commissionPct: '',
   marketFeePct: '',
 });
@@ -80,10 +83,14 @@ const PAYMENT_MODES: { value: PaymentMode; label: string }[] = [
 function compute(l: LineDraft) {
   const base = Number(l.weight) > 0 ? Number(l.weight) : Number(l.quantity) || 0;
   const gross = base * (Number(l.rate) || 0);
-  const commission = (gross * (Number(l.commissionPct) || 0)) / 100;
-  const marketFee = (gross * (Number(l.marketFeePct) || 0)) / 100;
-  const net = gross - commission - marketFee;
-  return { gross, commission, marketFee, net };
+  // Dual rate: the supplier's side (gross/commission/fee/net) settles at the
+  // supplier rate when set; the gap to the customer gross is the margin.
+  const settleBase = Number(l.supplierRate) > 0 ? base * Number(l.supplierRate) : gross;
+  const commission = (settleBase * (Number(l.commissionPct) || 0)) / 100;
+  const marketFee = (settleBase * (Number(l.marketFeePct) || 0)) / 100;
+  const net = settleBase - commission - marketFee;
+  const margin = gross - settleBase;
+  return { gross, commission, marketFee, net, margin };
 }
 
 export default function SaleEntryPage() {
@@ -148,9 +155,10 @@ export default function SaleEntryPage() {
       acc.commission += c.commission;
       acc.marketFee += c.marketFee;
       acc.net += c.net;
+      acc.margin += c.margin;
       return acc;
     },
-    { gross: 0, commission: 0, marketFee: 0, net: 0 },
+    { gross: 0, commission: 0, marketFee: 0, net: 0, margin: 0 },
   );
 
   const updateLine = (idx: number, patch: Partial<LineDraft>) =>
@@ -182,6 +190,10 @@ export default function SaleEntryPage() {
   const selectedPending = customerId ? pendingMap.get(customerId) ?? 0 : 0;
   const busy = isLoading || updating;
 
+  // A lot qualifies for the dual rate only when it came from a Commission arrival.
+  const lotIsCommission = (lotId: string) =>
+    (lots ?? []).find((x) => x.id === lotId)?.purchaseType === 'commission';
+
   const buildLines = () =>
     validLines.map((l) => ({
       itemId: l.itemId,
@@ -189,6 +201,11 @@ export default function SaleEntryPage() {
       quantity: Number(l.quantity) || 0,
       weight: Number(l.weight) || 0,
       rate: Number(l.rate),
+      // Supplier rate rides along only for admins on Commission lots — a stale
+      // value from a switched lot must never reach the API (it would be rejected).
+      ...(isAdmin && Number(l.supplierRate) > 0 && lotIsCommission(l.lotId)
+        ? { supplierRate: Number(l.supplierRate) }
+        : {}),
       // A blank field means 0 (the item default only pre-fills the input;
       // clearing it = no charge), so the saved sale matches the on-screen figures.
       commissionPct: l.commissionPct === '' ? 0 : Number(l.commissionPct),
@@ -228,6 +245,7 @@ export default function SaleEntryPage() {
               quantity: String(l.quantity),
               weight: String(l.weight),
               rate: String(l.rate),
+              supplierRate: l.supplierRate ? String(l.supplierRate) : '',
               commissionPct: String(l.commissionPct),
               marketFeePct: String(l.marketFeePct),
             }))
@@ -433,6 +451,8 @@ export default function SaleEntryPage() {
           const itemLots = line.itemId ? lotsByItem.get(line.itemId) ?? [] : [];
           const selectedLot = itemLots.find((l) => l.id === line.lotId);
           const overdraw = selectedLot && Number(line.weight) > selectedLot.weightAvailable + 0.001;
+          // Dual rate: admin-only, and only on stock from a Commission arrival.
+          const dualRate = isAdmin && selectedLot?.purchaseType === 'commission';
           return (
             <Card key={idx}>
               <CardContent sx={{ pb: '12px !important' }}>
@@ -482,8 +502,26 @@ export default function SaleEntryPage() {
                       />
                     </Grid>
                     <Grid size={4}>
-                      <TextField fullWidth size="small" label="Rate ₹" type="number" value={line.rate} disabled={linesLocked} onChange={(e) => updateLine(idx, { rate: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
+                      <TextField fullWidth size="small" label={dualRate ? 'Customer rate ₹' : 'Rate ₹'} type="number" value={line.rate} disabled={linesLocked} onChange={(e) => updateLine(idx, { rate: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
                     </Grid>
+                    {dualRate && (
+                      <Grid size={12}>
+                        <TextField
+                          fullWidth size="small" type="number"
+                          label="Supplier rate ₹ (confidential)"
+                          value={line.supplierRate}
+                          disabled={linesLocked}
+                          onChange={(e) => updateLine(idx, { supplierRate: e.target.value })}
+                          inputProps={{ inputMode: 'decimal' }}
+                          color="warning" focused={Number(line.supplierRate) > 0}
+                          helperText={
+                            Number(line.supplierRate) > 0
+                              ? `Supplier settles at this rate · your margin ${formatCurrency(c.margin, false)}`
+                              : 'Commission lot — leave blank to settle at the customer rate'
+                          }
+                        />
+                      </Grid>
+                    )}
                     <Grid size={6}>
                       <TextField fullWidth size="small" label="Commission %" type="number" value={line.commissionPct} disabled={linesLocked} onChange={(e) => updateLine(idx, { commissionPct: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
                     </Grid>
@@ -521,6 +559,9 @@ export default function SaleEntryPage() {
             <Total label="Commission" value={totals.commission} />
             <Total label="Market fee" value={totals.marketFee} />
             <Total label="Supplier net" value={totals.net} color="success.main" />
+            {isAdmin && Math.abs(totals.margin) > 0.001 && (
+              <Total label="Your margin" value={totals.margin} color="warning.main" />
+            )}
           </Grid>
           <Button fullWidth size="large" variant="contained" onClick={save} disabled={!canSave || busy}>
             {editingId

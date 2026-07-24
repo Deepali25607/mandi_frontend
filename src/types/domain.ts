@@ -131,6 +131,10 @@ export interface SaleLine {
   quantity: number;
   weight: number;
   rate: number;
+  /** Dual rate (Commission lots): rate payable to the supplier. Only present for admins. */
+  supplierRate?: number | null;
+  /** Supplier-basis gross (base × supplierRate). Only present for admins. */
+  supplierGrossAmount?: number | null;
   commissionPct: number;
   marketFeePct: number;
   grossAmount: number;
@@ -184,6 +188,7 @@ export interface CreateSalePayload {
     quantity: number;
     weight: number;
     rate: number;
+    supplierRate?: number;
     commissionPct?: number;
     marketFeePct?: number;
   }>;

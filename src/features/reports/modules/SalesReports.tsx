@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useGetSalesQuery, useGetStockLotsQuery } from '@/api/operationsApi';
+import { useAppSelector } from '@/store/hooks';
 import { useLookups } from '@/utils/useLookups';
 import {
   DateRangeFilter, FilterSelect, ReportShell, inRange, useMonthRange,
@@ -104,6 +105,8 @@ export function SupplierSaleRegisterReport() {
   const [supplierId, setSupplierId] = useState('');
   const [itemId, setItemId] = useState('');
   const [purchaseType, setPurchaseType] = useState('');
+  // Dual-rate columns (supplier rate + margin) are confidential — admin only.
+  const isAdmin = useAppSelector((s) => s.auth.user?.role) === 'org_admin';
 
   const lotById = useMemo(() => new Map((lots ?? []).map((l) => [l.id, l])), [lots]);
 
@@ -117,8 +120,14 @@ export function SupplierSaleRegisterReport() {
     { key: 'type', label: 'Purchase Type' },
     { key: 'qty', label: 'Qty', numeric: true, total: true },
     { key: 'weight', label: 'Weight (kg)', numeric: true, total: true },
-    { key: 'rate', label: 'Rate', currency: true },
-    { key: 'gross', label: 'Gross', currency: true, total: true },
+    { key: 'rate', label: 'Cust. Rate', currency: true },
+    ...(isAdmin
+      ? [
+          { key: 'suppRate', label: 'Supp. Rate', currency: true },
+          { key: 'margin', label: 'Margin', currency: true, total: true },
+        ]
+      : []),
+    { key: 'gross', label: 'Gross (billed)', currency: true, total: true },
     { key: 'commission', label: 'Commission', currency: true, total: true },
     { key: 'fee', label: 'Market Fee', currency: true, total: true },
     { key: 'net', label: 'Net payable', currency: true, total: true },
@@ -139,9 +148,15 @@ export function SupplierSaleRegisterReport() {
           item: itemName(line.itemId), lot: lot!.lotNumber,
           type: purchaseTypeLabel(lot!.purchaseType),
           qty: line.quantity, weight: line.weight, rate: line.rate,
+          ...(isAdmin
+            ? {
+                suppRate: line.supplierRate ?? line.rate,
+                margin: line.grossAmount - (line.supplierGrossAmount ?? line.grossAmount),
+              }
+            : {}),
           gross: line.grossAmount, commission: line.commissionAmount, fee: line.marketFeeAmount, net: line.netAmount,
         })),
-    ), [sales, lotById, from, to, supplierId, itemId, purchaseType, supplierName, itemName, customerName]);
+    ), [sales, lotById, from, to, supplierId, itemId, purchaseType, isAdmin, supplierName, itemName, customerName]);
 
   return (
     <ReportShell
