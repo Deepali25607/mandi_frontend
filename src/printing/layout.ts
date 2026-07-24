@@ -131,6 +131,10 @@ export function layoutInvoice(d: InvoiceData, cols: number): ReceiptLine[] {
   // ---- Totals ----
   L.push(line(padBetween('Total bags', num(d.totalQty), cols)));
   L.push(line(padBetween('Total weight', `${num(d.totalWeight)} kg`, cols)));
+  if ((d.otherCharges ?? 0) > 0) {
+    const label = d.otherChargesNote ? `Other chg (${d.otherChargesNote})` : 'Other charges';
+    L.push(line(padBetween(label.slice(0, cols - 12), money(d.otherCharges!), cols), 'left', true));
+  }
   L.push(line(divider));
   // Double-size total halves the columns; on narrow rolls the label+value pair
   // can't share a line without truncating digits — split instead.

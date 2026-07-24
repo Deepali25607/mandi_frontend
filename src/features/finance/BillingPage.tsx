@@ -48,8 +48,11 @@ export default function BillingPage() {
       `Customer: ${customerName(sale.customerId)}`,
       '',
       ...sale.lines.map((l) => `${itemName(l.itemId)} — ${l.weight}kg @ ₹${l.rate} = ${formatCurrency(l.grossAmount, false)}`),
+      ...(sale.otherCharges > 0
+        ? [`Other charges${sale.otherChargesNote ? ` (${sale.otherChargesNote})` : ''}: ${formatCurrency(sale.otherCharges, false)}`]
+        : []),
       '',
-      `*Net Amount: ${formatCurrency(sale.grossAmount, false)}*`,
+      `*Net Amount: ${formatCurrency(sale.grossAmount + sale.otherCharges, false)}*`,
       `Payment: ${sale.paymentMode.toUpperCase()}`,
     ].join('\n');
 
@@ -99,7 +102,7 @@ export default function BillingPage() {
                     <Typography variant="caption" color="text.secondary">{s.saleNumber} · {s.date} · {s.lines.length} item(s)</Typography>
                   </Box>
                   <Chip size="small" label={s.paymentMode} sx={{ height: 20, fontSize: '0.65rem' }} />
-                  <Typography sx={{ fontWeight: 800 }}>{formatCurrency(s.grossAmount)}</Typography>
+                  <Typography sx={{ fontWeight: 800 }}>{formatCurrency(s.grossAmount + (s.otherCharges ?? 0))}</Typography>
                 </Stack>
               </CardActionArea>
             </Card>
@@ -139,7 +142,10 @@ export default function BillingPage() {
               {/* Customer's bill: gross only — commission/market fee are the
                   supplier's deductions and stay off the buyer's invoice. */}
               <Stack spacing={0.5}>
-                <Row label="Net Amount" value={active.grossAmount} bold />
+                {(active.otherCharges ?? 0) > 0 && (
+                  <Row label={`Other charges${active.otherChargesNote ? ` (${active.otherChargesNote})` : ''}`} value={active.otherCharges} />
+                )}
+                <Row label="Net Amount" value={active.grossAmount + (active.otherCharges ?? 0)} bold />
               </Stack>
             </DialogContent>
             <DialogActions sx={{ p: 2, gap: 1 }}>

@@ -90,6 +90,9 @@ export default function SaleEntryPage() {
   const [date, setDate] = useState(today());
   const [customerId, setCustomerId] = useState('');
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('credit');
+  // Extra charges billed on top of goods (bhada, palledari…) + what they're for.
+  const [otherCharges, setOtherCharges] = useState('');
+  const [otherChargesNote, setOtherChargesNote] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([emptyLine()]);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -200,6 +203,8 @@ export default function SaleEntryPage() {
     setDate(today());
     setCustomerId('');
     setPaymentMode('credit');
+    setOtherCharges('');
+    setOtherChargesNote('');
     setLines([emptyLine()]);
     setError(null);
   };
@@ -213,6 +218,8 @@ export default function SaleEntryPage() {
       setDate(s.date);
       setCustomerId(s.customerId);
       setPaymentMode(s.paymentMode);
+      setOtherCharges(s.otherCharges ? String(s.otherCharges) : '');
+      setOtherChargesNote(s.otherChargesNote ?? '');
       setLines(
         s.lines.length
           ? s.lines.map((l) => ({
@@ -287,26 +294,34 @@ export default function SaleEntryPage() {
       `Customer: ${customerName(sale.customerId)}`,
       '',
       ...sale.lines.map((l) => `${itemName(l.itemId)} — ${l.weight}kg @ ₹${l.rate} = ${formatCurrency(l.grossAmount, false)}`),
+      ...(sale.otherCharges > 0
+        ? [`Other charges${sale.otherChargesNote ? ` (${sale.otherChargesNote})` : ''}: ${formatCurrency(sale.otherCharges, false)}`]
+        : []),
       '',
-      `*Net Amount: ${formatCurrency(sale.grossAmount, false)}*`,
+      `*Net Amount: ${formatCurrency(sale.grossAmount + sale.otherCharges, false)}*`,
       `Payment: ${sale.paymentMode.toUpperCase()}`,
     ].join('\n');
 
   const save = async () => {
     setError(null);
     try {
+      const header = {
+        date, customerId, paymentMode,
+        otherCharges: Number(otherCharges) || 0,
+        otherChargesNote: otherChargesNote.trim() || undefined,
+      };
       if (editingId) {
         // Locked → header-only patch (no lines); else full edit.
-        const body = linesLocked
-          ? { date, customerId, paymentMode }
-          : { date, customerId, paymentMode, lines: buildLines() };
+        const body = linesLocked ? header : { ...header, lines: buildLines() };
         const sale = await updateSale({ id: editingId, body }).unwrap();
-        setToast(`Sale ${sale.saleNumber} updated · billed ${formatCurrency(sale.grossAmount, false)}`);
+        setToast(`Sale ${sale.saleNumber} updated · billed ${formatCurrency(sale.grossAmount + sale.otherCharges, false)}`);
         resetForm();
       } else {
-        const sale = await createSale({ date, customerId, paymentMode, lines: buildLines() }).unwrap();
-        setToast(`Sale ${sale.saleNumber} saved · billed ${formatCurrency(sale.grossAmount, false)}`);
+        const sale = await createSale({ ...header, lines: buildLines() }).unwrap();
+        setToast(`Sale ${sale.saleNumber} saved · billed ${formatCurrency(sale.grossAmount + sale.otherCharges, false)}`);
         setCustomerId('');
+        setOtherCharges('');
+        setOtherChargesNote('');
         setLines([emptyLine()]);
         // Offer the invoice straight away — no trip to the Billing screen.
         setBilled(sale);
@@ -376,10 +391,10 @@ export default function SaleEntryPage() {
                     {formatCurrency(selectedPending, false)}
                   </Typography>
                 </Box>
-                {totals.gross > 0 && (
+                {totals.gross + (Number(otherCharges) || 0) > 0 && (
                   <Box sx={{ textAlign: 'right' }}>
                     <Typography variant="caption" color="text.secondary">After this sale</Typography>
-                    <Typography sx={{ fontWeight: 800, lineHeight: 1.1 }}>{formatCurrency(selectedPending + totals.gross, false)}</Typography>
+                    <Typography sx={{ fontWeight: 800, lineHeight: 1.1 }}>{formatCurrency(selectedPending + totals.gross + (Number(otherCharges) || 0), false)}</Typography>
                   </Box>
                 )}
               </Box>
@@ -391,6 +406,22 @@ export default function SaleEntryPage() {
                   <MenuItem key={p.value} value={p.value}>{p.label}</MenuItem>
                 ))}
               </TextField>
+            </Stack>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField
+                label="Other charges ₹" type="number" value={otherCharges}
+                onChange={(e) => setOtherCharges(e.target.value)}
+                inputProps={{ inputMode: 'decimal', min: 0 }}
+                helperText="Bhada, palledari… added to the bill"
+                sx={{ flex: 1 }}
+              />
+              <TextField
+                label="Charges note (optional)" value={otherChargesNote}
+                onChange={(e) => setOtherChargesNote(e.target.value)}
+                helperText="Printed on the bill, e.g. “Transport”"
+                sx={{ flex: 2 }}
+                disabled={!(Number(otherCharges) > 0)}
+              />
             </Stack>
           </Stack>
         </CardContent>
@@ -485,7 +516,8 @@ export default function SaleEntryPage() {
       <Card sx={{ position: 'sticky', bottom: { xs: 'calc(56px + env(safe-area-inset-bottom) + 8px)', md: 8 }, zIndex: 2 }}>
         <CardContent>
           <Grid container spacing={1} sx={{ mb: 1.5 }}>
-            <Total label="Customer bill" value={totals.gross} bold />
+            <Total label="Customer bill" value={totals.gross + (Number(otherCharges) || 0)} bold />
+            {Number(otherCharges) > 0 && <Total label="Other charges" value={Number(otherCharges)} />}
             <Total label="Commission" value={totals.commission} />
             <Total label="Market fee" value={totals.marketFee} />
             <Total label="Supplier net" value={totals.net} color="success.main" />
@@ -607,11 +639,12 @@ export default function SaleEntryPage() {
               <Stack direction="row" justifyContent="space-between" alignItems="baseline">
                 <Typography variant="body2" color="text.secondary">Net Amount</Typography>
                 <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                  {formatCurrency(billed.grossAmount, false)}
+                  {formatCurrency(billed.grossAmount + (billed.otherCharges ?? 0), false)}
                 </Typography>
               </Stack>
               <Typography variant="caption" color="text.secondary">
                 {billed.lines.length} item(s) · {billed.paymentMode.toUpperCase()}
+                {(billed.otherCharges ?? 0) > 0 && ` · incl. ${formatCurrency(billed.otherCharges, false)} other charges${billed.otherChargesNote ? ` (${billed.otherChargesNote})` : ''}`}
               </Typography>
             </DialogContent>
             <DialogActions sx={{ p: 2, gap: 1 }}>

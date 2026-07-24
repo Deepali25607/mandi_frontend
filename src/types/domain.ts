@@ -141,6 +141,9 @@ export interface Sale {
   paymentMode: PaymentMode;
   notes?: string;
   grossAmount: number;
+  /** Extra charges billed to the customer (bhada, palledari…). */
+  otherCharges: number;
+  otherChargesNote?: string;
   commissionAmount: number;
   marketFeeAmount: number;
   netAmount: number;
@@ -166,6 +169,8 @@ export interface CreateSalePayload {
   customerId: string;
   paymentMode?: PaymentMode;
   notes?: string;
+  otherCharges?: number;
+  otherChargesNote?: string;
   lines: Array<{
     itemId: string;
     lotId?: string;

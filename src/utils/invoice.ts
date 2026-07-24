@@ -51,7 +51,10 @@ export interface InvoiceData {
   lines: InvoiceLine[];
   totalQty: number;
   totalWeight: number;
-  /** What the buyer owes — the gross. Commission/market fee never appear here. */
+  /** Extra charges added to the bill (bhada, palledari…). */
+  otherCharges?: number;
+  otherChargesNote?: string;
+  /** What the buyer owes — goods gross + other charges. Commission/market fee never appear here. */
   netAmount: number;
   paymentMode: string;
 }
@@ -62,6 +65,8 @@ export interface BillableSale {
   date: string;
   paymentMode: string;
   grossAmount: number;
+  otherCharges?: number;
+  otherChargesNote?: string;
   lines: { itemId: string; quantity: number; weight: number; rate: number; grossAmount: number }[];
 }
 
@@ -95,8 +100,10 @@ export function buildInvoiceData(args: {
     lines,
     totalQty: Math.round(lines.reduce((s, l) => s + l.qty, 0) * 100) / 100,
     totalWeight: Math.round(lines.reduce((s, l) => s + l.weight, 0) * 100) / 100,
-    // The buyer owes the gross — commission/market fee stay off this bill.
-    netAmount: args.sale.grossAmount,
+    otherCharges: args.sale.otherCharges ?? 0,
+    otherChargesNote: args.sale.otherChargesNote,
+    // The buyer owes gross + other charges — commission/market fee stay off this bill.
+    netAmount: args.sale.grossAmount + (args.sale.otherCharges ?? 0),
     paymentMode: args.sale.paymentMode,
   };
 }
@@ -185,6 +192,7 @@ export function printThermalInvoice(d: InvoiceData, paper: PaperSpec | Exclude<P
     <div class="hr"></div>
     <div class="row sm"><span>Total bags</span><span>${num(d.totalQty)}</span></div>
     <div class="row sm"><span>Total weight</span><span>${num(d.totalWeight)} kg</span></div>
+    ${(d.otherCharges ?? 0) > 0 ? `<div class="row sm"><span>Other charges${d.otherChargesNote ? ` (${esc(d.otherChargesNote)})` : ''}</span><span class="b">${money(d.otherCharges!)}</span></div>` : ''}
     <div class="hr"></div>
     <div class="row total"><span>NET AMOUNT</span><span>${money(d.netAmount)}</span></div>
     <div class="hr"></div>
@@ -300,6 +308,13 @@ export function buildInvoicePdf(d: InvoiceData): BuiltInvoicePdf {
   doc.setTextColor(90);
   doc.text(`Total bags: ${num(d.totalQty)}    Total weight: ${num(d.totalWeight)} kg`, M, y);
   doc.setTextColor(0);
+  if ((d.otherCharges ?? 0) > 0) {
+    y += 16;
+    doc.setFontSize(10);
+    doc.text(`Other charges${d.otherChargesNote ? ` (${d.otherChargesNote})` : ''}`, M, y);
+    doc.text(money(d.otherCharges!), W - M - 8, y, { align: 'right' });
+    y += 4;
+  }
 
   const boxW = 200;
   const boxX = W - M - boxW;
