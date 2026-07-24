@@ -19,6 +19,7 @@ import {
 } from './modules/AccountingReports';
 import { CustomerOutstandingReport, CustomerMasterReport } from './modules/CustomerReports';
 import { SupplierOutstandingReport, SupplierMasterReport } from './modules/SupplierReports';
+import { SupplierRateMarginReport } from './modules/MarginReport';
 import { SupplierBillReport, SupplierPaymentReport, ExpenseRegisterReport } from './modules/FinanceReports';
 
 export type ReportModule =
@@ -32,6 +33,8 @@ export interface ReportDef {
   description: string;
   /** Subscription feature required to use this report (hidden + enforced otherwise). */
   feature?: PlatformFeature;
+  /** Confidential report — visible to the Org Admin only (hidden + route-guarded). */
+  adminOnly?: boolean;
   Component: ComponentType;
 }
 
@@ -80,6 +83,7 @@ export const REPORTS: ReportDef[] = [
   { key: 'supplier-outstanding', module: 'Suppliers', title: 'Supplier Outstanding', description: 'Payables per supplier.', Component: SupplierOutstandingReport },
   { key: 'supplier-wise-sales', module: 'Suppliers', title: 'Supplier-wise Sales', description: 'Sold-lot lines attributed to each supplier, with net payable.', Component: SupplierSaleRegisterReport },
   { key: 'supplier-master', module: 'Suppliers', title: 'Supplier Master', description: 'All suppliers with commission rates.', Component: SupplierMasterReport },
+  { key: 'supplier-rate-margin', module: 'Suppliers', title: 'Supplier Rate & Margin (Internal)', description: 'Confidential: dual rates, margin and total earnings per sold lot line. Admin only.', adminOnly: true, Component: SupplierRateMarginReport },
 
   { key: 'supplier-bills', module: 'Settlements', title: 'Supplier Bills', description: 'Settlement bills with deductions.', feature: 'settlements', Component: SupplierBillReport },
   { key: 'supplier-payments', module: 'Settlements', title: 'Supplier Payments', description: 'Payments made to suppliers.', feature: 'settlements', Component: SupplierPaymentReport },

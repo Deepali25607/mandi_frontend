@@ -22,17 +22,21 @@ export default function ReportsPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const features = useAppSelector((s) => s.auth.user?.features) ?? [];
+  const isAdmin = useAppSelector((s) => s.auth.user?.role) === 'org_admin';
 
-  // Reports grouped by module, hiding any whose subscription feature the plan lacks.
+  // Reports grouped by module, hiding any whose subscription feature the plan
+  // lacks and any confidential (admin-only) reports for other roles.
   const grouped = useMemo(() => {
-    const visible = REPORTS.filter((r) => !r.feature || features.includes(r.feature));
+    const visible = REPORTS.filter(
+      (r) => (!r.feature || features.includes(r.feature)) && (!r.adminOnly || isAdmin),
+    );
     const map = new Map<ReportModule, ReportDef[]>();
     for (const r of visible) {
       if (!map.has(r.module)) map.set(r.module, []);
       map.get(r.module)!.push(r);
     }
     return map;
-  }, [features]);
+  }, [features, isAdmin]);
 
   const modules = MODULE_ORDER.filter((m) => grouped.has(m));
 
