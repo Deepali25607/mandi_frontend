@@ -63,6 +63,10 @@ export interface SupplierBill {
   billNumber: string;
   date: string;
   supplierId: string;
+  /** When set, the bill settles only this item's lots (item-wise settlement). */
+  itemId?: string | null;
+  /** When set, the bill settles a single lot (lot-wise settlement). */
+  lotId?: string | null;
   fromDate: string;
   toDate: string;
   grossSales: number;
@@ -78,14 +82,27 @@ export interface SupplierBill {
   notes?: string;
 }
 
+/** Sold quantities per lot — shows which lots the settlement covers. */
+export interface SettlementLotRow {
+  lotId: string;
+  lotNumber: string;
+  itemId: string;
+  qty: number;
+  weight: number;
+  gross: number;
+  net: number;
+  lines: number;
+}
+
 export interface SupplierBillPreview {
   gross: number;
   commission: number;
   marketFee: number;
   net: number;
   saleLineCount: number;
-  /** Transport (bhada) that will be auto-deducted for this period. */
+  /** Transport (bhada) that will be auto-deducted for this period (all-items bills only). */
   transport: number;
+  lots: SettlementLotRow[];
 }
 
 export interface SupplierPayment {

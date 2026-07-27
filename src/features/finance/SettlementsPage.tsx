@@ -12,9 +12,15 @@ import {
   DialogTitle,
   Divider,
   IconButton,
+  ListSubheader,
   MenuItem,
   Snackbar,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
   TextField,
   Typography,
 } from '@mui/material';
@@ -27,6 +33,7 @@ import {
   useGetSupplierBillsQuery,
   usePreviewSupplierBillMutation,
 } from '@/api/financeApi';
+import { useGetStockLotsQuery } from '@/api/operationsApi';
 import { useLookups } from '@/utils/useLookups';
 import { formatCurrency } from '@/utils/format';
 import type { PaymentMode } from '@/types/domain';
@@ -40,13 +47,16 @@ const monthAgo = () => {
 };
 
 export default function SettlementsPage() {
-  const { suppliers, supplierName } = useLookups();
+  const { suppliers, supplierName, itemName } = useLookups();
   const { data: bills } = useGetSupplierBillsQuery();
+  const { data: lots } = useGetStockLotsQuery({});
   const [preview, { isLoading: previewing }] = usePreviewSupplierBillMutation();
   const [createBill, { isLoading: creating }] = useCreateSupplierBillMutation();
   const [createPayment, { isLoading: paying }] = useCreateSupplierPaymentMutation();
 
   const [supplierId, setSupplierId] = useState('');
+  // Settlement scope: '' = everything; 'item:<id>' = one item's lots; 'lot:<id>' = a single lot.
+  const [scope, setScope] = useState('');
   const [fromDate, setFromDate] = useState(monthAgo());
   const [toDate, setToDate] = useState(today());
   const [previewData, setPreviewData] = useState<SupplierBillPreview | null>(null);
@@ -62,6 +72,33 @@ export default function SettlementsPage() {
   const [payMode, setPayMode] = useState<PaymentMode>('cash');
 
   const recent = useMemo(() => bills ?? [], [bills]);
+
+  // The supplier's items with their lots, derived from stock lots — so a
+  // settlement can be prepared for everything, one item, or a single lot.
+  const supplierItems = useMemo(() => {
+    const bySupplier = (lots ?? []).filter((l) => l.supplierId === supplierId);
+    const map = new Map<string, typeof bySupplier>();
+    for (const l of bySupplier) {
+      if (!map.has(l.itemId)) map.set(l.itemId, []);
+      map.get(l.itemId)!.push(l);
+    }
+    return [...map.entries()]
+      .map(([id, itemLots]) => ({
+        id,
+        name: itemName(id),
+        lots: [...itemLots].sort((a, b) => a.lotNumber.localeCompare(b.lotNumber)),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [lots, supplierId, itemName]);
+
+  const lotNumber = (id?: string | null) => (lots ?? []).find((l) => l.id === id)?.lotNumber ?? 'Lot';
+
+  /** Decode the scope select into API params. */
+  const scopeParams = scope.startsWith('lot:')
+    ? { lotId: scope.slice(4) }
+    : scope.startsWith('item:')
+      ? { itemId: scope.slice(5) }
+      : {};
   const netPayable = previewData
     ? previewData.net - previewData.transport - Number(labour || 0) - Number(crate || 0) - Number(other || 0)
     : 0;
@@ -70,7 +107,7 @@ export default function SettlementsPage() {
     setError(null);
     setPreviewData(null);
     try {
-      const res = await preview({ supplierId, fromDate, toDate }).unwrap();
+      const res = await preview({ supplierId, ...scopeParams, fromDate, toDate }).unwrap();
       setPreviewData(res);
     } catch {
       setError('Could not load supplier sales for this range.');
@@ -81,7 +118,7 @@ export default function SettlementsPage() {
     setError(null);
     try {
       const bill = await createBill({
-        supplierId, fromDate, toDate, date: today(),
+        supplierId, ...scopeParams, fromDate, toDate, date: today(),
         labourCharges: Number(labour || 0), crateCharges: Number(crate || 0), otherCharges: Number(other || 0),
       }).unwrap();
       setToast(`Bill ${bill.billNumber} · net payable ${formatCurrency(bill.netPayable, false)}`);
@@ -117,10 +154,37 @@ export default function SettlementsPage() {
         <Card>
           <CardContent>
             <Stack spacing={2}>
-              <TextField select label="Supplier" value={supplierId} onChange={(e) => { setSupplierId(e.target.value); setPreviewData(null); }}>
+              <TextField select label="Supplier" value={supplierId} onChange={(e) => { setSupplierId(e.target.value); setScope(''); setPreviewData(null); }}>
                 {suppliers.filter((s) => s.isActive).map((s) => (
                   <MenuItem key={s.id} value={s.id}>{s.name}{s.village ? ` · ${s.village}` : ''}</MenuItem>
                 ))}
+              </TextField>
+              <TextField
+                select
+                label="Item / Lot"
+                value={scope}
+                onChange={(e) => { setScope(e.target.value); setPreviewData(null); }}
+                disabled={!supplierId}
+                helperText={
+                  !supplierId
+                    ? 'Pick a supplier first'
+                    : supplierItems.length === 0
+                      ? 'No lots from this supplier yet'
+                      : 'Settle everything, one item, or a single lot'
+                }
+              >
+                <MenuItem value="">All items &amp; lots</MenuItem>
+                {supplierItems.flatMap((it) => [
+                  <ListSubheader key={`h-${it.id}`}>{it.name}</ListSubheader>,
+                  <MenuItem key={`item-${it.id}`} value={`item:${it.id}`}>
+                    All {it.name} lots ({it.lots.length})
+                  </MenuItem>,
+                  ...it.lots.map((l) => (
+                    <MenuItem key={`lot-${l.id}`} value={`lot:${l.id}`} sx={{ pl: 4 }}>
+                      {l.lotNumber} · {l.weightArrived}kg arrived{l.status === 'closed' ? ' · sold out' : ''}
+                    </MenuItem>
+                  )),
+                ])}
               </TextField>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <TextField label="From" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} InputLabelProps={{ shrink: true }} />
@@ -133,14 +197,46 @@ export default function SettlementsPage() {
               {previewData && (
                 <>
                   <Divider />
+                  {/* Lot-wise detail: exactly which lots this settlement covers. */}
+                  {previewData.lots.length > 0 && (
+                    <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, overflowX: 'auto' }}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 700 }}>Lot</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Item</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700 }}>Qty</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700 }}>Weight</TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 700 }}>Net</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {previewData.lots.map((l) => (
+                            <TableRow key={`${l.lotId}-${l.itemId}`}>
+                              <TableCell>{l.lotNumber}</TableCell>
+                              <TableCell>{itemName(l.itemId)}</TableCell>
+                              <TableCell align="right">{l.qty}</TableCell>
+                              <TableCell align="right">{l.weight} kg</TableCell>
+                              <TableCell align="right">{formatCurrency(l.net, false)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </Box>
+                  )}
                   <Stack spacing={0.5}>
-                    <Row label={`Gross sales (${previewData.saleLineCount} lines)`} value={previewData.gross} />
+                    <Row label={`Gross sales (${previewData.saleLineCount} lines · ${previewData.lots.length} lot(s))`} value={previewData.gross} />
                     <Row label="− Commission" value={-previewData.commission} />
                     <Row label="− Market fee" value={-previewData.marketFee} />
                     <Row label="Sales net" value={previewData.net} bold />
                     <Row label="− Transport (bhada) · auto" value={-previewData.transport} />
                   </Stack>
-                  {previewData.transport > 0 && (
+                  {scope ? (
+                    <Typography variant="caption" color="text.secondary">
+                      {scope.startsWith('lot:') ? 'Lot-wise' : 'Item-wise'} settlement: transport (bhada) belongs to the
+                      whole arrival, so it is not auto-deducted here — add it under “Other ₹” if this bill should carry it.
+                    </Typography>
+                  ) : previewData.transport > 0 && (
                     <Typography variant="caption" color="text.secondary">
                       Transport is auto-summed from this supplier's arrivals in the selected period and always deducted.
                     </Typography>
@@ -199,7 +295,7 @@ export default function SettlementsPage() {
                               <Chip size="small" label={b.status} color={b.status === 'paid' ? 'success' : 'warning'} sx={{ height: 18, fontSize: '0.6rem' }} />
                             </Stack>
                             <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
-                              {b.billNumber} · {b.fromDate}→{b.toDate}
+                              {b.billNumber} · {b.lotId ? `Lot ${lotNumber(b.lotId)}` : b.itemId ? itemName(b.itemId) : 'All items'} · {b.fromDate}→{b.toDate}
                             </Typography>
                           </Box>
                           <Box sx={{ textAlign: 'right' }}>
@@ -227,7 +323,7 @@ export default function SettlementsPage() {
               <Box sx={{ flexGrow: 1 }}>
                 {supplierName(detail.supplierId)}
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 400 }}>
-                  {detail.billNumber} · {detail.fromDate}→{detail.toDate}
+                  {detail.billNumber} · {detail.lotId ? `Lot ${lotNumber(detail.lotId)}` : detail.itemId ? itemName(detail.itemId) : 'All items'} · {detail.fromDate}→{detail.toDate}
                 </Typography>
               </Box>
               <Chip size="small" label={detail.status} color={detail.status === 'paid' ? 'success' : 'warning'} />

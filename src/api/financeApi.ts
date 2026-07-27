@@ -103,11 +103,11 @@ export const financeApi = apiSlice.injectEndpoints({
       query: () => '/settlements/bills',
       providesTags: ['SupplierBill'],
     }),
-    previewSupplierBill: build.mutation<SupplierBillPreview, { supplierId: string; fromDate: string; toDate: string }>({
+    previewSupplierBill: build.mutation<SupplierBillPreview, { supplierId: string; itemId?: string; lotId?: string; fromDate: string; toDate: string }>({
       query: (body) => ({ url: '/settlements/bills/preview', method: 'POST', body }),
     }),
     createSupplierBill: build.mutation<SupplierBill, {
-      supplierId: string; fromDate: string; toDate: string; date: string;
+      supplierId: string; itemId?: string; lotId?: string; fromDate: string; toDate: string; date: string;
       labourCharges?: number; crateCharges?: number; otherCharges?: number; notes?: string;
     }>({
       query: (body) => ({ url: '/settlements/bills', method: 'POST', body }),
