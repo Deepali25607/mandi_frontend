@@ -143,11 +143,15 @@ export const financeApi = apiSlice.injectEndpoints({
     }),
 
     // ---- Accounting ----
+    // Every transaction that moves a party balance invalidates 'Outstanding',
+    // so tagging the ledgers with it keeps them in sync with the lists.
     getCustomerLedger: build.query<LedgerResult, string>({
       query: (customerId) => `/accounting/customer-ledger/${customerId}`,
+      providesTags: ['Outstanding'],
     }),
     getSupplierLedger: build.query<LedgerResult, string>({
       query: (supplierId) => `/accounting/supplier-ledger/${supplierId}`,
+      providesTags: ['Outstanding'],
     }),
     getCashBook: build.query<CashBookResult, 'cash' | 'bank'>({
       query: (kind) => `/accounting/cash-book?kind=${kind}`,

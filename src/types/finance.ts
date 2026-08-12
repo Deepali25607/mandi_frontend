@@ -149,6 +149,8 @@ export interface SupplierOutstandingRow {
   village?: string;
   opening: number;
   billed: number;
+  /** Signed rate/weight adjustment effect on the payable. */
+  adjustments: number;
   paid: number;
   balance: number;
   salesNet: number;
