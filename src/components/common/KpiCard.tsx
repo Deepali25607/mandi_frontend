@@ -12,6 +12,7 @@ import Inventory2RoundedIcon from '@mui/icons-material/Inventory2Rounded';
 import PercentRoundedIcon from '@mui/icons-material/PercentRounded';
 import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
 import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
+import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import type { KpiCard as KpiCardData } from '@/types';
 import { formatCurrency, formatNumber } from '@/utils/format';
 
@@ -25,6 +26,7 @@ const ICONS: Record<string, ComponentType> = {
   box: Inventory2RoundedIcon,
   percent: PercentRoundedIcon,
   trend: TrendingUpRoundedIcon,
+  book: MenuBookRoundedIcon,
 };
 
 // Soft tinted backgrounds per KPI for quick visual scanning.
@@ -38,6 +40,7 @@ const TINTS: Record<string, string> = {
   box: '#eef0f5',
   percent: '#f3ecfb',
   trend: '#e8f3ec',
+  book: '#e6ecfb',
 };
 
 export default function KpiCard({ data, onClick }: { data: KpiCardData; onClick?: () => void }) {

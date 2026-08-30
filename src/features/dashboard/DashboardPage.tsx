@@ -40,6 +40,7 @@ import { useGetCashInHandQuery, useGetDashboardOverviewQuery } from '@/api/dashb
 import { useGetCustomerOutstandingQuery } from '@/api/financeApi';
 import { useAppSelector } from '@/store/hooks';
 import KpiCard from '@/components/common/KpiCard';
+import { useKhataTotals } from '@/features/khata/hooks';
 import ChartCard from '@/components/common/ChartCard';
 import SalesModeCard from './SalesModeCard';
 import TodayRatesCard from './TodayRatesCard';
@@ -61,6 +62,7 @@ const KPI_LINKS: Record<string, string> = {
 export default function DashboardPage() {
   const user = useAppSelector((s) => s.auth.user);
   const navigate = useNavigate();
+  const khata = useKhataTotals();
   // Always pull the latest figures when the dashboard is opened.
   const { data, isLoading, isError, refetch } = useGetDashboardOverviewQuery(undefined, { refetchOnMountOrArgChange: true });
   const { data: outstanding } = useGetCustomerOutstandingQuery();
@@ -136,6 +138,13 @@ export default function DashboardPage() {
                 }
               />
             ))}
+        {/* Parties (Khata) — receivable across the khata book; opens the ledger workspace. */}
+        {!isLoading && data && (
+          <KpiCard
+            data={{ key: 'khata', label: 'Parties (Khata) · to collect', value: khata.get, format: 'currency', icon: 'book' }}
+            onClick={() => navigate('/parties')}
+          />
+        )}
       </Box>
 
       {/* Cash vs Credit sales — each with its own date-range filter and records */}

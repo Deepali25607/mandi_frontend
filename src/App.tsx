@@ -22,6 +22,8 @@ import CollectionsPage from '@/features/finance/CollectionsPage';
 import AdjustmentsPage from '@/features/finance/AdjustmentsPage';
 import ExpensesPage from '@/features/finance/ExpensesPage';
 import OutstandingPage from '@/features/finance/OutstandingPage';
+import PartiesPage from '@/features/khata/PartiesPage';
+import PartyLedgerPage from '@/features/khata/PartyLedgerPage';
 import BankAccountsPage from '@/features/finance/BankAccountsPage';
 import CashTransferPage from '@/features/finance/CashTransferPage';
 import BillingPage from '@/features/finance/BillingPage';
@@ -59,6 +61,7 @@ const IMPLEMENTED = new Set([
   '/billing',
   '/settlements',
   '/outstanding',
+  '/parties',
   '/bank-accounts',
   '/cash-transfers',
   '/expenses',
@@ -132,6 +135,8 @@ export default function App() {
         <Route path="/billing" element={<BillingPage />} />
         <Route path="/settlements" element={<SettlementsPage />} />
         <Route path="/outstanding" element={<OutstandingPage />} />
+        <Route path="/parties" element={<PartiesPage />} />
+        <Route path="/parties/:partyId" element={<PartyLedgerPage />} />
         <Route path="/bank-accounts" element={<BankAccountsPage />} />
         <Route path="/cash-transfers" element={<CashTransferPage />} />
         <Route path="/expenses" element={<ExpensesPage />} />

@@ -27,6 +27,7 @@ import ApartmentRoundedIcon from '@mui/icons-material/ApartmentRounded';
 import ManageAccountsRoundedIcon from '@mui/icons-material/ManageAccountsRounded';
 import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
 import HandshakeRoundedIcon from '@mui/icons-material/HandshakeRounded';
+import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import MoneyOffRoundedIcon from '@mui/icons-material/MoneyOffRounded';
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import PaletteRoundedIcon from '@mui/icons-material/PaletteRounded';
@@ -84,6 +85,7 @@ export const NAV_ITEMS: NavItem[] = [
   // Accounts
   { label: 'Billing', path: '/billing', icon: ReceiptLongRoundedIcon, roles: ['accountant', 'sales_operator'], section: 'Accounts' },
   { label: 'Settlements', path: '/settlements', icon: HandshakeRoundedIcon, roles: ['accountant', 'org_admin'], section: 'Accounts', feature: 'settlements' },
+  { label: 'Parties (Khata)', path: '/parties', icon: MenuBookRoundedIcon, roles: ['org_admin', 'accountant', 'collection_executive', 'sales_operator'], section: 'Accounts', primary: true },
   { label: 'Outstanding', path: '/outstanding', icon: AccountBalanceWalletRoundedIcon, roles: ['org_admin', 'accountant', 'collection_executive'], section: 'Accounts' },
   { label: 'Bank Accounts', path: '/bank-accounts', icon: AccountBalanceRoundedIcon, roles: ['org_admin', 'accountant'], section: 'Accounts' },
   { label: 'Cash / Bank Transfer', path: '/cash-transfers', icon: CompareArrowsRoundedIcon, roles: ['org_admin', 'accountant'], section: 'Accounts' },

@@ -103,6 +103,11 @@ export default function AppShell() {
     navigate('/login', { replace: true });
   };
 
+  // Khata screens draw their own header/bottom bar and must be edge-to-edge on
+  // phones, so the shell drops its chrome and padding there.
+  const fullBleed = location.pathname.startsWith('/parties') && !isDesktop;
+  const hideChrome = fullBleed && !isDesktop;
+
   const grouped = groupBySection(items);
   const sb = sidebarPalette(appearance.sidebar, theme);
 
@@ -213,6 +218,7 @@ export default function AppShell() {
       )}
 
       <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        {!hideChrome && (
         <AppBar
           position="sticky"
           elevation={0}
@@ -274,6 +280,7 @@ export default function AppShell() {
             </Menu>
           </Toolbar>
         </AppBar>
+        )}
 
         {/* Subscription lock / trial-ending banner (org users only). */}
         <SubscriptionBanner />
@@ -283,9 +290,9 @@ export default function AppShell() {
           component="main"
           sx={{
             flexGrow: 1,
-            p: { xs: 2, md: 3 },
-            pb: { xs: 12, md: 3 },
-            maxWidth: 1280,
+            p: fullBleed ? 0 : { xs: 2, md: 3 },
+            pb: fullBleed ? 0 : { xs: 12, md: 3 },
+            maxWidth: fullBleed ? 'none' : 1280,
             width: '100%',
             mx: 'auto',
           }}
@@ -295,7 +302,7 @@ export default function AppShell() {
       </Box>
 
       {/* Mobile bottom navigation */}
-      {!isDesktop && (
+      {!isDesktop && !hideChrome && (
         <Paper
           elevation={0}
           sx={{
@@ -349,7 +356,8 @@ export default function AppShell() {
 
       {/* MandiAI — floating AI assistant. Paid plan feature, toggled per plan
           by the platform Super Admin; hidden for orgs without it. */}
-      {user.organizationId && (user.features ?? []).includes('ai_assistant') && <AiAssistantBot />}
+      {/* The floating bot would sit on top of the Khata bottom bar on phones. */}
+      {user.organizationId && !hideChrome && (user.features ?? []).includes('ai_assistant') && <AiAssistantBot />}
     </Box>
   );
 }
