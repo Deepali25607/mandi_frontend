@@ -7,6 +7,7 @@ import {
   type ReportColumn, type ReportRow,
 } from '../shared';
 import { PURCHASE_TYPE_OPTIONS, purchaseTypeLabel } from './PurchaseReports';
+import LotFilter, { lotsFromIds, useLotFilter } from '@/components/common/LotFilter';
 
 export function SalesRegisterReport() {
   const { data: sales, isLoading } = useGetSalesQuery();
@@ -52,10 +53,8 @@ export function SaleItemRegisterReport() {
   const [customerId, setCustomerId] = useState('');
   const [itemId, setItemId] = useState('');
 
-  const lotNumber = useMemo(() => {
-    const m = new Map((lots ?? []).map((l) => [l.id, l.lotNumber]));
-    return (id: string | null) => (id ? m.get(id) ?? '—' : '—');
-  }, [lots]);
+  const lotById = useMemo(() => new Map((lots ?? []).map((l) => [l.id, l])), [lots]);
+  const lotNumber = (id: string | null) => (id ? lotById.get(id)?.lotNumber ?? '—' : '—');
 
   // Customer-facing line register — same rule as the Sales Register: the buyer
   // is billed the gross, so no commission / market fee is shown here.
@@ -71,27 +70,40 @@ export function SaleItemRegisterReport() {
     { key: 'net', label: 'Net Amount', currency: true, total: true },
   ];
 
-  const rows: ReportRow[] = useMemo(() => (sales ?? [])
+  // Lines matching every filter except Lot No. — the lot dropdown offers only
+  // lots present here, so Date / Customer / Item cascade into it.
+  const preRows = useMemo(() => (sales ?? [])
     .filter((s) => inRange(s.date, from, to) && (!customerId || s.customerId === customerId))
     .flatMap((s) =>
       (s.lines ?? [])
         .filter((l) => !itemId || l.itemId === itemId)
         .map((l) => ({
-          date: s.date, no: s.saleNumber, customer: customerName(s.customerId),
-          item: itemName(l.itemId), lot: lotNumber(l.lotId),
-          qty: l.quantity, weight: l.weight, rate: l.rate,
-          net: l.grossAmount,
+          lotId: l.lotId,
+          row: {
+            date: s.date, no: s.saleNumber, customer: customerName(s.customerId),
+            item: itemName(l.itemId), lot: lotNumber(l.lotId),
+            qty: l.quantity, weight: l.weight, rate: l.rate,
+            net: l.grossAmount,
+          } as ReportRow,
         })),
-    ), [sales, from, to, customerId, itemId, customerName, itemName, lotNumber]);
+    ), [sales, from, to, customerId, itemId, customerName, itemName, lotById]); // eslint-disable-line react-hooks/exhaustive-deps
+  const lotOptions = useMemo(() => lotsFromIds(preRows.map((r) => r.lotId), lotById), [preRows, lotById]);
+  const { lotId, setLotId, options: lotChoices } = useLotFilter(lotOptions);
+  const rows: ReportRow[] = useMemo(
+    () => preRows.filter((r) => !lotId || r.lotId === lotId).map((r) => r.row),
+    [preRows, lotId],
+  );
 
   return (
     <ReportShell
       title="Sale Item Register" description="Every item line sold — with lot, quantity, rate and value."
-      meta={`${from} to ${to}`} columns={columns} rows={rows} loading={isLoading}
+      meta={`${from} to ${to}${lotId ? ` · lot ${lotById.get(lotId)?.lotNumber}` : ''}`} columns={columns} rows={rows} loading={isLoading}
+      lotColumnKey="lot"
       filters={<>
         <DateRangeFilter from={from} to={to} onFrom={setFrom} onTo={setTo} />
         <FilterSelect label="Customer" value={customerId} onChange={setCustomerId} options={customers.map((c) => ({ value: c.id, label: c.name }))} />
         <FilterSelect label="Item" value={itemId} onChange={setItemId} options={items.map((i) => ({ value: i.id, label: i.name }))} />
+        <LotFilter value={lotId} onChange={setLotId} options={lotChoices} />
       </>}
     />
   );
@@ -134,7 +146,9 @@ export function SupplierSaleRegisterReport() {
   ];
 
   // Only lot-linked sale lines are attributable to a supplier (via the lot).
-  const rows: ReportRow[] = useMemo(() => (sales ?? [])
+  // Everything except the Lot No. filter is applied here; the lot dropdown then
+  // offers exactly the lots that survive (Supplier / Item / Type / Date cascade).
+  const preRows = useMemo(() => (sales ?? [])
     .filter((s) => inRange(s.date, from, to))
     .flatMap((s) =>
       (s.lines ?? [])
@@ -143,30 +157,41 @@ export function SupplierSaleRegisterReport() {
         .filter(({ line }) => !itemId || line.itemId === itemId)
         .filter(({ lot }) => !purchaseType || (lot!.purchaseType ?? 'bilty') === purchaseType)
         .map(({ line, lot }) => ({
-          date: s.date, no: s.saleNumber, customer: customerName(s.customerId),
-          supplier: supplierName(lot!.supplierId),
-          item: itemName(line.itemId), lot: lot!.lotNumber,
-          type: purchaseTypeLabel(lot!.purchaseType),
-          qty: line.quantity, weight: line.weight, rate: line.rate,
-          ...(isAdmin
-            ? {
-                suppRate: line.supplierRate ?? line.rate,
-                margin: line.grossAmount - (line.supplierGrossAmount ?? line.grossAmount),
-              }
-            : {}),
-          gross: line.grossAmount, commission: line.commissionAmount, fee: line.marketFeeAmount, net: line.netAmount,
+          lotId: lot!.id,
+          row: {
+            date: s.date, no: s.saleNumber, customer: customerName(s.customerId),
+            supplier: supplierName(lot!.supplierId),
+            item: itemName(line.itemId), lot: lot!.lotNumber,
+            type: purchaseTypeLabel(lot!.purchaseType),
+            qty: line.quantity, weight: line.weight, rate: line.rate,
+            ...(isAdmin
+              ? {
+                  suppRate: line.supplierRate ?? line.rate,
+                  margin: line.grossAmount - (line.supplierGrossAmount ?? line.grossAmount),
+                }
+              : {}),
+            gross: line.grossAmount, commission: line.commissionAmount, fee: line.marketFeeAmount, net: line.netAmount,
+          } as ReportRow,
         })),
     ), [sales, lotById, from, to, supplierId, itemId, purchaseType, isAdmin, supplierName, itemName, customerName]);
+  const lotOptions = useMemo(() => lotsFromIds(preRows.map((r) => r.lotId), lotById), [preRows, lotById]);
+  const { lotId, setLotId, options: lotChoices } = useLotFilter(lotOptions);
+  const rows: ReportRow[] = useMemo(
+    () => preRows.filter((r) => !lotId || r.lotId === lotId).map((r) => r.row),
+    [preRows, lotId],
+  );
 
   return (
     <ReportShell
       title="Supplier-wise Sales" description="Sold-lot lines attributed to each supplier, with net payable."
-      meta={`${from} to ${to}`} columns={columns} rows={rows} loading={isLoading}
+      meta={`${from} to ${to}${lotId ? ` · lot ${lotById.get(lotId)?.lotNumber}` : ''}`} columns={columns} rows={rows} loading={isLoading}
+      lotColumnKey="lot"
       filters={<>
         <DateRangeFilter from={from} to={to} onFrom={setFrom} onTo={setTo} />
         <FilterSelect label="Supplier" value={supplierId} onChange={setSupplierId} options={suppliers.map((s) => ({ value: s.id, label: s.name }))} />
         <FilterSelect label="Purchase type" value={purchaseType} onChange={setPurchaseType} options={PURCHASE_TYPE_OPTIONS} />
         <FilterSelect label="Item" value={itemId} onChange={setItemId} options={items.map((i) => ({ value: i.id, label: i.name }))} />
+        <LotFilter value={lotId} onChange={setLotId} options={lotChoices} />
       </>}
     />
   );

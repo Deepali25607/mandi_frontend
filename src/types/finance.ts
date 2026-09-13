@@ -78,6 +78,8 @@ export interface SupplierBill {
   crateCharges: number;
   otherCharges: number;
   netPayable: number;
+  /** Advances adjusted on this bill; remaining to pay = netPayable − advanceAdjusted. */
+  advanceAdjusted?: number;
   status: 'finalised' | 'paid';
   notes?: string;
 }
@@ -94,15 +96,44 @@ export interface SettlementLotRow {
   lines: number;
 }
 
+/** One arrival's freight share carried by a settlement (from the Arrival Entry). */
+export interface TransportShare {
+  arrivalId: string;
+  arrivalNumber: string;
+  arrivalDate: string;
+  arrivalTransport: number;
+  shareWeight: number;
+  arrivalWeight: number;
+  amount: number;
+}
+
 export interface SupplierBillPreview {
   gross: number;
   commission: number;
   marketFee: number;
   net: number;
   saleLineCount: number;
-  /** Transport (bhada) that will be auto-deducted for this period (all-items bills only). */
+  /** Transport (bhada) auto-deducted — fetched from the arrival(s) and apportioned by weight share. */
   transport: number;
+  transportDetail?: TransportShare[];
+  /** Bill numbers that already cover this scope — set when nothing is left to settle. */
+  settledBy?: string[];
   lots: SettlementLotRow[];
+  /** Advance payments against the lots being settled, oldest first. */
+  advances?: AdvanceRow[];
+  advanceTotal?: number;
+}
+
+/** One advance payment adjusted by a settlement. */
+export interface AdvanceRow {
+  paymentId: string;
+  paymentNumber: string;
+  date: string;
+  amount: number;
+  paymentMode: PaymentMode;
+  lotId: string;
+  lotNumber: string;
+  reference?: string;
 }
 
 export interface SupplierPayment {
@@ -113,6 +144,8 @@ export interface SupplierPayment {
   amount: number;
   paymentMode: PaymentMode;
   billId: string | null;
+  /** Advance against a specific lot (adjusted on the bill that settles it). */
+  lotId?: string | null;
   reference?: string;
   notes?: string;
 }

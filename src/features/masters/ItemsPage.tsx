@@ -44,8 +44,9 @@ const blankForm = {
   name: '',
   category: 'vegetables' as ItemCategory,
   unit: 'kg',
-  defaultCommissionPct: 6,
-  defaultMarketFeePct: 1,
+  defaultCommissionPct: 7,
+  defaultMarketFeePct: 0,
+  standardUnitWeightKg: 40,
 };
 
 export default function ItemsPage() {
@@ -90,13 +91,15 @@ export default function ItemsPage() {
       unit: item.unit,
       defaultCommissionPct: item.defaultCommissionPct,
       defaultMarketFeePct: item.defaultMarketFeePct,
+      standardUnitWeightKg: item.standardUnitWeightKg || 40,
     });
     setOpen(true);
   };
 
   const save = async () => {
-    if (editing) await updateItem({ id: editing.id, body: form }).unwrap();
-    else await createItem(form).unwrap();
+    const body = { ...form, standardUnitWeightKg: form.standardUnitWeightKg > 0 ? form.standardUnitWeightKg : 40 };
+    if (editing) await updateItem({ id: editing.id, body }).unwrap();
+    else await createItem(body).unwrap();
     setOpen(false);
   };
 
@@ -117,7 +120,7 @@ export default function ItemsPage() {
           <EntityCard
             avatarText={item.name.charAt(0)}
             title={item.name}
-            subtitle={`${item.code} · ${item.unit}`}
+            subtitle={`${item.code} · ${item.unit}${item.standardUnitWeightKg > 0 ? ` · ${item.standardUnitWeightKg} kg/unit` : ''}`}
             inactive={!item.isActive}
             chips={[
               { label: CATEGORIES.find((c) => c.value === item.category)?.label ?? item.category, color: CATEGORY_COLOR[item.category] },
@@ -189,11 +192,23 @@ export default function ItemsPage() {
                 <MenuItem key={c.value} value={c.value}>{c.label}</MenuItem>
               ))}
             </TextField>
-            <TextField
-              label="Unit"
-              value={form.unit}
-              onChange={(e) => setForm({ ...form, unit: e.target.value })}
-            />
+            <Stack direction="row" spacing={2}>
+              <TextField
+                label="Unit"
+                value={form.unit}
+                onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                sx={{ flex: 1 }}
+              />
+              <TextField
+                label="Std. unit weight (kg)"
+                type="number"
+                value={form.standardUnitWeightKg}
+                onChange={(e) => setForm({ ...form, standardUnitWeightKg: Number(e.target.value) })}
+                inputProps={{ min: 0.01, step: 'any', inputMode: 'decimal' }}
+                helperText="e.g. 40 per bag"
+                sx={{ flex: 1 }}
+              />
+            </Stack>
             <Stack direction="row" spacing={2}>
               <TextField
                 label="Commission %"

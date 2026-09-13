@@ -118,7 +118,7 @@ export const financeApi = apiSlice.injectEndpoints({
       providesTags: ['SupplierPayment'],
     }),
     createSupplierPayment: build.mutation<SupplierPayment, {
-      supplierId: string; date: string; amount: number; paymentMode?: PaymentMode; billId?: string; reference?: string; notes?: string;
+      supplierId: string; date: string; amount: number; paymentMode?: PaymentMode; billId?: string; lotId?: string; reference?: string; notes?: string;
     }>({
       query: (body) => ({ url: '/settlements/payments', method: 'POST', body }),
       invalidatesTags: ['SupplierPayment', 'SupplierBill', 'Outstanding', 'Dashboard'],

@@ -7,6 +7,7 @@ import {
   type ReportColumn, type ReportRow,
 } from '../shared';
 import { purchaseTypeLabel, PURCHASE_TYPE_OPTIONS } from './PurchaseReports';
+import LotFilter, { lotsFromIds, useLotFilter } from '@/components/common/LotFilter';
 
 /**
  * CONFIDENTIAL — Org Admin only (enforced in the reports registry + runner;
@@ -34,6 +35,7 @@ export function SupplierRateMarginReport() {
     { key: 'no', label: 'Invoice' },
     { key: 'supplier', label: 'Supplier' },
     { key: 'item', label: 'Item' },
+    { key: 'lot', label: 'Lot No.' },
     { key: 'type', label: 'Purchase Type' },
     { key: 'weight', label: 'Weight (kg)', numeric: true, total: true },
     { key: 'custRate', label: 'Cust. Rate', currency: true },
@@ -47,7 +49,7 @@ export function SupplierRateMarginReport() {
     { key: 'net', label: 'Supplier net (to settle)', currency: true, total: true },
   ];
 
-  const rows: ReportRow[] = useMemo(() => (sales ?? [])
+  const preRows = useMemo(() => (sales ?? [])
     .filter((s) => inRange(s.date, from, to))
     .flatMap((s) =>
       (s.lines ?? [])
@@ -62,23 +64,33 @@ export function SupplierRateMarginReport() {
           const suppValue = line.supplierGrossAmount ?? line.grossAmount;
           const margin = line.grossAmount - suppValue;
           return {
-            date: s.date, no: s.saleNumber,
-            supplier: supplierName(lot!.supplierId),
-            item: itemName(line.itemId),
-            type: purchaseTypeLabel(lot!.purchaseType),
-            weight: line.weight,
-            custRate: line.rate,
-            suppRate: line.supplierRate ?? line.rate,
-            billed: line.grossAmount,
-            suppValue,
-            margin,
-            commission: line.commissionAmount,
-            fee: line.marketFeeAmount,
-            earning: margin + line.commissionAmount + line.marketFeeAmount,
-            net: line.netAmount,
+            lotId: lot!.id,
+            row: {
+              date: s.date, no: s.saleNumber,
+              supplier: supplierName(lot!.supplierId),
+              item: itemName(line.itemId),
+              lot: lot!.lotNumber,
+              type: purchaseTypeLabel(lot!.purchaseType),
+              weight: line.weight,
+              custRate: line.rate,
+              suppRate: line.supplierRate ?? line.rate,
+              billed: line.grossAmount,
+              suppValue,
+              margin,
+              commission: line.commissionAmount,
+              fee: line.marketFeeAmount,
+              earning: margin + line.commissionAmount + line.marketFeeAmount,
+              net: line.netAmount,
+            } as ReportRow,
           };
         }),
     ), [sales, lotById, from, to, supplierId, itemId, purchaseType, rateMode, supplierName, itemName]);
+  const lotOptions = useMemo(() => lotsFromIds(preRows.map((r) => r.lotId), lotById), [preRows, lotById]);
+  const { lotId, setLotId, options: lotChoices } = useLotFilter(lotOptions);
+  const rows: ReportRow[] = useMemo(
+    () => preRows.filter((r) => !lotId || r.lotId === lotId).map((r) => r.row),
+    [preRows, lotId],
+  );
 
   const profit = rows.reduce((s, r) => s + Number(r.earning), 0);
   const dualCount = rows.filter((r) => Number(r.margin) !== 0).length;
@@ -89,12 +101,14 @@ export function SupplierRateMarginReport() {
       description="Confidential owner's ledger: customer vs supplier rate per sold lot line, with margin, commission and total earnings. Supplier settlements use the Supplier net column."
       meta={`${from} to ${to} · ${dualCount} dual-rate line(s) · total earning ${formatCurrency(profit, false)}`}
       columns={columns} rows={rows} loading={isLoading}
+      lotColumnKey="lot"
       filters={<>
         <DateRangeFilter from={from} to={to} onFrom={setFrom} onTo={setTo} />
         <FilterSelect label="Supplier" value={supplierId} onChange={setSupplierId} options={suppliers.map((sp) => ({ value: sp.id, label: sp.name }))} />
         <FilterSelect label="Item" value={itemId} onChange={setItemId} options={items.map((i) => ({ value: i.id, label: i.name }))} />
         <FilterSelect label="Purchase type" value={purchaseType} onChange={setPurchaseType} options={PURCHASE_TYPE_OPTIONS} />
         <FilterSelect label="Rate mode" value={rateMode} onChange={setRateMode} options={[{ value: 'dual', label: 'Dual rate only' }, { value: 'single', label: 'Single rate only' }]} />
+        <LotFilter value={lotId} onChange={setLotId} options={lotChoices} />
       </>}
     />
   );

@@ -29,7 +29,6 @@ export default function KhataScaffold({ header, children, footer, fab }: Props) 
         mx: 'auto',
         bgcolor: KHATA.bg,
         color: KHATA.text,
-        fontFamily: "'Roboto', 'Inter', 'Segoe UI', system-ui, sans-serif",
         boxShadow: { md: '0 0 0 1px #e5e7eb' },
         position: 'relative',
       }}

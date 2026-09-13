@@ -34,6 +34,9 @@ import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { formatCurrency, formatNumber } from '@/utils/format';
 import { printHtml } from '@/utils/share';
+import { useGetStockLotsQuery } from '@/api/operationsApi';
+import LotDetailDialog from '@/components/common/LotDetailDialog';
+import type { StockLot } from '@/types/domain';
 
 export interface ReportColumn {
   key: string;
@@ -195,7 +198,7 @@ export function inRange(date: string, from: string, to: string): boolean {
  * an optional totals footer. CSV + Print are generated from the same columns/rows.
  */
 export function ReportShell({
-  title, description, meta, columns, rows, filters, loading, emptyText = 'No data for the selected filters.',
+  title, description, meta, columns, rows, filters, loading, emptyText = 'No data for the selected filters.', lotColumnKey,
 }: {
   title: string;
   description?: string;
@@ -205,6 +208,8 @@ export function ReportShell({
   filters?: ReactNode;
   loading?: boolean;
   emptyText?: string;
+  /** Column holding a Lot No. — enables "View lot" in the row detail dialog. */
+  lotColumnKey?: string;
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -214,6 +219,12 @@ export function ReportShell({
 
   // Click any row to see the full record (all columns) in a dialog.
   const [detail, setDetail] = useState<{ row: ReportRow; index: number } | null>(null);
+  // Lot drill-down from the detail dialog (only for reports that carry a Lot No.).
+  const { data: lotsForDetail } = useGetStockLotsQuery(undefined, { skip: !lotColumnKey });
+  const [lotDetail, setLotDetail] = useState<StockLot | null>(null);
+  const detailLot = lotColumnKey && detail
+    ? (lotsForDetail ?? []).find((l) => l.lotNumber === String(detail.row[lotColumnKey] ?? ''))
+    : undefined;
   // First non-numeric column doubles as the record's headline (invoice no., name, …).
   const headlineCol = columns.find((c) => !isRight(c)) ?? columns[0];
 
@@ -339,6 +350,11 @@ export function ReportShell({
               <IconButton onClick={() => setDetail(null)} size="small"><CloseRoundedIcon /></IconButton>
             </DialogTitle>
             <DialogContent dividers>
+              {detailLot && (
+                <Button size="small" variant="outlined" onClick={() => setLotDetail(detailLot)} sx={{ mb: 1 }}>
+                  View lot {detailLot.lotNumber}
+                </Button>
+              )}
               <Stack spacing={0.25}>
                 {columns.map((c, ci) => (
                   <Box
@@ -359,6 +375,7 @@ export function ReportShell({
           </>
         )}
       </Dialog>
+      <LotDetailDialog lot={lotDetail} onClose={() => setLotDetail(null)} />
     </Stack>
   );
 }

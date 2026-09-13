@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import LotFilter, { useLotFilter } from '@/components/common/LotFilter';
 import { useGetStockLotsQuery, useGetStockSummaryQuery } from '@/api/operationsApi';
 import { useLookups } from '@/utils/useLookups';
 import { FilterSelect, ReportShell, type ReportColumn, type ReportRow } from '../shared';
@@ -52,13 +53,18 @@ export function StockLotReport() {
     { key: 'status', label: 'Status' },
   ];
 
-  const rows: ReportRow[] = useMemo(() => (lots ?? [])
+  // Lots matching every filter except Lot No. — these are the dropdown's options.
+  const preLots = useMemo(() => (lots ?? [])
     .filter((l) =>
       (!itemId || l.itemId === itemId) &&
       (!supplierId || l.supplierId === supplierId) &&
       (!status || l.status === status) &&
       (!purchaseType || (l.purchaseType ?? 'bilty') === purchaseType),
-    )
+    ), [lots, itemId, supplierId, status, purchaseType]);
+  const { lotId, setLotId, options: lotChoices } = useLotFilter(preLots);
+
+  const rows: ReportRow[] = useMemo(() => preLots
+    .filter((l) => !lotId || l.id === lotId)
     .map((l) => ({
       lot: l.lotNumber, date: l.date, item: itemName(l.itemId), supplier: supplierName(l.supplierId),
       type: purchaseTypeLabel(l.purchaseType),
@@ -67,17 +73,19 @@ export function StockLotReport() {
       // Value of stock still on hand for this lot (available weight × cost rate).
       value: Math.round(l.weightAvailable * l.rate * 100) / 100,
       status: l.status,
-    })), [lots, itemId, supplierId, status, purchaseType, itemName, supplierName]);
+    })), [preLots, lotId, itemName, supplierName]);
 
   return (
     <ReportShell
       title="Stock Lot Register" description="Lot-wise inventory with drawdown, on-hand value and status."
       columns={columns} rows={rows} loading={isLoading}
+      lotColumnKey="lot"
       filters={<>
         <FilterSelect label="Item" value={itemId} onChange={setItemId} options={items.map((i) => ({ value: i.id, label: i.name }))} />
         <FilterSelect label="Supplier" value={supplierId} onChange={setSupplierId} options={suppliers.map((s) => ({ value: s.id, label: s.name }))} />
         <FilterSelect label="Purchase type" value={purchaseType} onChange={setPurchaseType} options={PURCHASE_TYPE_OPTIONS} />
         <FilterSelect label="Status" value={status} onChange={setStatus} options={[{ value: 'active', label: 'Active' }, { value: 'closed', label: 'Closed' }]} />
+        <LotFilter value={lotId} onChange={setLotId} options={lotChoices} />
       </>}
     />
   );

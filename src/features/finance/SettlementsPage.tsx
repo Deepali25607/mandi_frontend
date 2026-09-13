@@ -35,7 +35,7 @@ import {
 } from '@/api/financeApi';
 import { useGetStockLotsQuery } from '@/api/operationsApi';
 import { useLookups } from '@/utils/useLookups';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatNumber } from '@/utils/format';
 import type { PaymentMode } from '@/types/domain';
 import type { SupplierBill, SupplierBillPreview } from '@/types/finance';
 
@@ -102,6 +102,9 @@ export default function SettlementsPage() {
   const netPayable = previewData
     ? previewData.net - previewData.transport - Number(labour || 0) - Number(crate || 0) - Number(other || 0)
     : 0;
+  const advanceTotal = previewData?.advanceTotal ?? 0;
+  const remainingPayable = netPayable - advanceTotal;
+  const remainingOf = (b: SupplierBill) => b.netPayable - (b.advanceAdjusted ?? 0);
 
   const runPreview = async () => {
     setError(null);
@@ -133,7 +136,7 @@ export default function SettlementsPage() {
   const openPay = (bill: SupplierBill) => {
     setDetail(null);
     setPayBill(bill);
-    setPayAmount(String(bill.netPayable));
+    setPayAmount(String(Math.max(0, remainingOf(bill))));
     setPayMode('cash');
   };
   const submitPay = async () => {
@@ -179,11 +182,17 @@ export default function SettlementsPage() {
                   <MenuItem key={`item-${it.id}`} value={`item:${it.id}`}>
                     All {it.name} lots ({it.lots.length})
                   </MenuItem>,
-                  ...it.lots.map((l) => (
-                    <MenuItem key={`lot-${l.id}`} value={`lot:${l.id}`} sx={{ pl: 4 }}>
-                      {l.lotNumber} · {l.weightArrived}kg arrived{l.status === 'closed' ? ' · sold out' : ''}
-                    </MenuItem>
-                  )),
+                  ...it.lots.map((l) => {
+                    // Prefer the bill that actually settled the lot (stamped on it); fall back to any lot-wise bill.
+                    const settledBill = recent.find((b) => b.id === l.freightBillId) ?? recent.find((b) => b.lotId === l.id);
+                    const done = Boolean(settledBill) && l.status === 'closed';
+                    return (
+                      <MenuItem key={`lot-${l.id}`} value={`lot:${l.id}`} sx={{ pl: 4 }} disabled={done}>
+                        {l.lotNumber} · {l.weightArrived}kg arrived{l.status === 'closed' ? ' · sold out' : ''}
+                        {settledBill ? ` · settled (${settledBill.billNumber})` : ''}
+                      </MenuItem>
+                    );
+                  }),
                 ])}
               </TextField>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -197,6 +206,13 @@ export default function SettlementsPage() {
               {previewData && (
                 <>
                   <Divider />
+                  {previewData.saleLineCount === 0 && (
+                    <Alert severity="info">
+                      {(previewData.settledBy ?? []).length > 0
+                        ? `Nothing left to settle — these sales are already covered by ${previewData.settledBy!.join(', ')}.`
+                        : 'No unsettled sales for this supplier in the selected range.'}
+                    </Alert>
+                  )}
                   {/* Lot-wise detail: exactly which lots this settlement covers. */}
                   {previewData.lots.length > 0 && (
                     <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, overflowX: 'auto' }}>
@@ -229,16 +245,32 @@ export default function SettlementsPage() {
                     <Row label="− Commission" value={-previewData.commission} />
                     <Row label="− Market fee" value={-previewData.marketFee} />
                     <Row label="Sales net" value={previewData.net} bold />
-                    <Row label="− Transport (bhada) · auto" value={-previewData.transport} />
+                    <Row label="− Transport (bhada) · from arrival" value={-previewData.transport} />
                   </Stack>
-                  {scope ? (
+                  {/* Freight is never typed here: it comes from the Arrival Entry of the
+                      lot(s) being settled, apportioned by weight share of the arrival. */}
+                  {(previewData.transportDetail ?? []).length > 0 ? (
+                    <Stack spacing={0.25}>
+                      {previewData.transportDetail!.map((t) => (
+                        <Stack key={t.arrivalId} direction="row" justifyContent="space-between" spacing={2}>
+                          <Typography variant="caption" color="text.secondary">
+                            {t.arrivalNumber} · {t.arrivalDate} · freight {formatCurrency(t.arrivalTransport, false)}
+                            {t.shareWeight < t.arrivalWeight
+                              ? ` × ${formatNumber(t.shareWeight)} / ${formatNumber(t.arrivalWeight)} kg`
+                              : ' · full arrival'}
+                          </Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>−{formatCurrency(t.amount, false)}</Typography>
+                        </Stack>
+                      ))}
+                      <Typography variant="caption" color="text.secondary">
+                        {scope
+                          ? `${scope.startsWith('lot:') ? 'Lot-wise' : 'Item-wise'} settlement: freight is taken from the arrival entry and apportioned by the weight share of the lines being settled.`
+                          : 'Freight is summed from this supplier\'s arrival entries in the selected period.'}
+                      </Typography>
+                    </Stack>
+                  ) : (
                     <Typography variant="caption" color="text.secondary">
-                      {scope.startsWith('lot:') ? 'Lot-wise' : 'Item-wise'} settlement: transport (bhada) belongs to the
-                      whole arrival, so it is not auto-deducted here — add it under “Other ₹” if this bill should carry it.
-                    </Typography>
-                  ) : previewData.transport > 0 && (
-                    <Typography variant="caption" color="text.secondary">
-                      Transport is auto-summed from this supplier's arrivals in the selected period and always deducted.
+                      No freight recorded on the arrival entr{scope.startsWith('lot:') ? 'y for this lot' : 'ies in this period'}.
                     </Typography>
                   )}
                   <Typography variant="caption" color="text.secondary">Other settlement deductions</Typography>
@@ -251,6 +283,25 @@ export default function SettlementsPage() {
                     <Typography sx={{ flexGrow: 1, fontWeight: 700 }}>Net payable</Typography>
                     <Typography variant="h6" sx={{ fontWeight: 800 }}>{formatCurrency(netPayable, false)}</Typography>
                   </Box>
+                  {/* Advances already paid against these lots — adjusted date-wise, oldest first. */}
+                  {(previewData.advances ?? []).length > 0 && (
+                    <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1.5 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.5 }}>Advance payments adjusted (date-wise)</Typography>
+                      <Stack spacing={0.25}>
+                        {previewData.advances!.map((a) => (
+                          <Stack key={a.paymentId} direction="row" justifyContent="space-between" spacing={2}>
+                            <Typography variant="body2" color="text.secondary">
+                              {a.date} · {a.paymentNumber} · {a.paymentMode.toUpperCase()} · lot {a.lotNumber}{a.reference ? ` · ${a.reference}` : ''}
+                            </Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>−{formatCurrency(a.amount, false)}</Typography>
+                          </Stack>
+                        ))}
+                        <Divider sx={{ my: 0.5 }} />
+                        <Row label="Total advance adjusted" value={-advanceTotal} bold />
+                        <Row label={remainingPayable >= 0 ? 'Remaining net payable' : 'Excess advance (supplier credit)'} value={Math.abs(remainingPayable)} bold />
+                      </Stack>
+                    </Box>
+                  )}
                   {error && <Alert severity="error">{error}</Alert>}
                   <Button variant="contained" onClick={generate} disabled={creating || previewData.saleLineCount === 0}>
                     {creating ? 'Generating…' : 'Generate Settlement Bill'}
@@ -300,6 +351,11 @@ export default function SettlementsPage() {
                           </Box>
                           <Box sx={{ textAlign: 'right' }}>
                             <Typography sx={{ fontWeight: 800 }}>{formatCurrency(b.netPayable)}</Typography>
+                            {(b.advanceAdjusted ?? 0) > 0 && (
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                adv. {formatCurrency(b.advanceAdjusted!)} · due {formatCurrency(Math.max(0, remainingOf(b)))}
+                              </Typography>
+                            )}
                             {b.status !== 'paid'
                               ? <Button size="small" onClick={() => openPay(b)}>Pay</Button>
                               : <IconButton size="small" onClick={() => setDetail(b)}><ChevronRightRoundedIcon fontSize="small" /></IconButton>}
@@ -340,6 +396,12 @@ export default function SettlementsPage() {
                 <Row label="− Other" value={-detail.otherCharges} />
                 <Divider sx={{ my: 1 }} />
                 <Row label="Net payable" value={detail.netPayable} bold />
+                {(detail.advanceAdjusted ?? 0) > 0 && (
+                  <>
+                    <Row label="− Advance adjusted" value={-(detail.advanceAdjusted ?? 0)} />
+                    <Row label={remainingOf(detail) >= 0 ? 'Remaining to pay' : 'Excess advance (credit)'} value={Math.abs(remainingOf(detail))} bold />
+                  </>
+                )}
               </Stack>
             </DialogContent>
             {detail.status !== 'paid' && (

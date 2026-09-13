@@ -16,7 +16,10 @@ import {
   Snackbar,
   Stack,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
+  Link,
 } from '@mui/material';
 import Grid from '@mui/material/Grid2';
 import { alpha } from '@mui/material/styles';
@@ -48,6 +51,18 @@ import { buildInvoiceData, downloadInvoicePdf, printThermalInvoice, type Invoice
 import PrintMenu, { type PrintTarget } from '@/components/common/PrintMenu';
 import ThermalPrintDialog from '@/components/common/ThermalPrintDialog';
 import type { PaymentMode, Sale, StockLot } from '@/types/domain';
+import {
+  autoWeight,
+  computeSaleLine,
+  DEFAULT_COMMISSION_PCT,
+  DEFAULT_MARKET_FEE_PCT,
+  normalizeRate,
+  rateInBasis,
+  toInput,
+  toNumber,
+  unitWeightOf,
+  type RateBasis,
+} from '@/utils/saleCalc';
 
 interface LineDraft {
   itemId: string;
@@ -59,7 +74,32 @@ interface LineDraft {
   supplierRate: string;
   commissionPct: string;
   marketFeePct: string;
+  /** Basis the rate was typed in — per kg, or per standard unit (e.g. a 40 kg bag). */
+  rateBasis: RateBasis;
+  /** Rate exactly as typed, in `rateBasis`. `rate` always holds the normalized ₹/kg. */
+  rateInput: string;
+  /** Weight was typed by hand — Qty changes must not overwrite it. */
+  weightManual: boolean;
 }
+
+// The rate basis is a per-device preference (not stored on the sale).
+const RATE_BASIS_KEY = 'mandi.sale.rateBasis';
+const loadRateBasis = (): RateBasis => {
+  try {
+    return localStorage.getItem(RATE_BASIS_KEY) === 'unit' ? 'unit' : 'kg';
+  } catch {
+    return 'kg';
+  }
+};
+const saveRateBasis = (b: RateBasis) => {
+  try {
+    localStorage.setItem(RATE_BASIS_KEY, b);
+  } catch {
+    /* ignore */
+  }
+};
+/** Reject negatives / stray signs at the input boundary; keep partial decimals typeable. */
+const nonNegative = (v: string) => (v.trim().startsWith('-') ? '' : v);
 
 const emptyLine = (): LineDraft => ({
   itemId: '',
@@ -68,8 +108,11 @@ const emptyLine = (): LineDraft => ({
   weight: '',
   rate: '',
   supplierRate: '',
-  commissionPct: '',
-  marketFeePct: '',
+  commissionPct: String(DEFAULT_COMMISSION_PCT),
+  marketFeePct: String(DEFAULT_MARKET_FEE_PCT),
+  rateBasis: loadRateBasis(),
+  rateInput: '',
+  weightManual: false,
 });
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -80,17 +123,16 @@ const PAYMENT_MODES: { value: PaymentMode; label: string }[] = [
   { value: 'bank', label: 'Bank' },
 ];
 
+/** Line maths live in utils/saleCalc so the preview matches the API to the paisa. */
 function compute(l: LineDraft) {
-  const base = Number(l.weight) > 0 ? Number(l.weight) : Number(l.quantity) || 0;
-  const gross = base * (Number(l.rate) || 0);
-  // Dual rate: the supplier's side (gross/commission/fee/net) settles at the
-  // supplier rate when set; the gap to the customer gross is the margin.
-  const settleBase = Number(l.supplierRate) > 0 ? base * Number(l.supplierRate) : gross;
-  const commission = (settleBase * (Number(l.commissionPct) || 0)) / 100;
-  const marketFee = (settleBase * (Number(l.marketFeePct) || 0)) / 100;
-  const net = settleBase - commission - marketFee;
-  const margin = gross - settleBase;
-  return { gross, commission, marketFee, net, margin };
+  return computeSaleLine({
+    quantity: toNumber(l.quantity),
+    weight: toNumber(l.weight),
+    rate: toNumber(l.rate),
+    supplierRate: toNumber(l.supplierRate),
+    commissionPct: toNumber(l.commissionPct),
+    marketFeePct: toNumber(l.marketFeePct),
+  });
 }
 
 export default function SaleEntryPage() {
@@ -164,19 +206,83 @@ export default function SaleEntryPage() {
   const updateLine = (idx: number, patch: Partial<LineDraft>) =>
     setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
 
-  // Selecting an item auto-fills commission/fee defaults, the first lot and
-  // today's selling rate from the Daily Prices board (still editable).
+  /** Standard unit weight for an item (mandi default when not configured). */
+  const unitWeightFor = (itemId: string) => unitWeightOf((items ?? []).find((i) => i.id === itemId));
+
+  // Selecting an item auto-fills commission/fee defaults, the first lot,
+  // today's selling rate from the Daily Prices board (still editable) and —
+  // unless the weight was typed by hand — Weight = Qty × standard unit weight.
   const onSelectItem = (idx: number, itemId: string) => {
     const item = activeItems.find((i) => i.id === itemId);
     const itemLots = lotsByItem.get(itemId) ?? [];
     const todayRate = latestPrices?.find((p) => p.itemId === itemId)?.price;
-    updateLine(idx, {
-      itemId,
-      lotId: itemLots[0]?.id ?? '',
-      commissionPct: item ? String(item.defaultCommissionPct) : '',
-      marketFeePct: item ? String(item.defaultMarketFeePct) : '',
-      ...(todayRate !== undefined ? { rate: String(todayRate) } : {}),
-    });
+    const uw = unitWeightOf(item);
+    setLines((prev) => prev.map((l, i) => {
+      if (i !== idx) return l;
+      const auto = l.weightManual ? null : autoWeight(toNumber(l.quantity), uw);
+      const rate = todayRate !== undefined ? todayRate : toNumber(l.rate);
+      return {
+        ...l,
+        itemId,
+        lotId: itemLots[0]?.id ?? '',
+        commissionPct: l.commissionPct === '' ? String(DEFAULT_COMMISSION_PCT) : l.commissionPct,
+        marketFeePct: l.marketFeePct === '' ? String(DEFAULT_MARKET_FEE_PCT) : l.marketFeePct,
+        rate: toInput(rate),
+        rateInput: toInput(rateInBasis(rate, l.rateBasis, uw)),
+        ...(auto !== null ? { weight: String(auto) } : {}),
+      };
+    }));
+  };
+
+  /** Qty drives Weight only while Weight hasn't been overridden by hand. */
+  const onQtyChange = (idx: number, value: string) => {
+    const quantity = nonNegative(value);
+    setLines((prev) => prev.map((l, i) => {
+      if (i !== idx) return l;
+      if (l.weightManual || !l.itemId) return { ...l, quantity };
+      const auto = autoWeight(toNumber(quantity), unitWeightFor(l.itemId));
+      return { ...l, quantity, weight: auto !== null ? String(auto) : '' };
+    }));
+  };
+
+  /** Typing a weight marks it manual; clearing it hands control back to Qty. */
+  const onWeightChange = (idx: number, value: string) => {
+    const weight = nonNegative(value);
+    setLines((prev) => prev.map((l, i) => {
+      if (i !== idx) return l;
+      if (weight === '') {
+        const auto = l.itemId ? autoWeight(toNumber(l.quantity), unitWeightFor(l.itemId)) : null;
+        return { ...l, weight: auto !== null ? String(auto) : '', weightManual: false };
+      }
+      return { ...l, weight, weightManual: true };
+    }));
+  };
+
+  const resetWeight = (idx: number) =>
+    setLines((prev) => prev.map((l, i) => {
+      if (i !== idx) return l;
+      const auto = autoWeight(toNumber(l.quantity), unitWeightFor(l.itemId));
+      return { ...l, weight: auto !== null ? String(auto) : '', weightManual: false };
+    }));
+
+  /** The typed rate is kept as-is; `rate` is always its ₹/kg equivalent. */
+  const onRateInput = (idx: number, value: string) => {
+    const rateInput = nonNegative(value);
+    setLines((prev) => prev.map((l, i) => {
+      if (i !== idx) return l;
+      const perKg = normalizeRate(toNumber(rateInput), l.rateBasis, unitWeightFor(l.itemId));
+      return { ...l, rateInput, rate: rateInput === '' ? '' : String(perKg) };
+    }));
+  };
+
+  /** Switching basis re-expresses the same ₹/kg in the other unit — the bill doesn't change. */
+  const onBasisChange = (idx: number, basis: RateBasis) => {
+    saveRateBasis(basis);
+    setLines((prev) => prev.map((l, i) => {
+      if (i !== idx) return l;
+      const perKg = toNumber(l.rate);
+      return { ...l, rateBasis: basis, rateInput: toInput(rateInBasis(perKg, basis, unitWeightFor(l.itemId))) };
+    }));
   };
 
   const addLine = () => setLines((prev) => [...prev, emptyLine()]);
@@ -248,6 +354,10 @@ export default function SaleEntryPage() {
               supplierRate: l.supplierRate ? String(l.supplierRate) : '',
               commissionPct: String(l.commissionPct),
               marketFeePct: String(l.marketFeePct),
+              rateBasis: loadRateBasis(),
+              rateInput: toInput(rateInBasis(l.rate, loadRateBasis(), unitWeightFor(l.itemId))),
+              // Stored weight is the actual weight — never recompute it from Qty.
+              weightManual: true,
             }))
           : [emptyLine()],
       );
@@ -453,6 +563,15 @@ export default function SaleEntryPage() {
           const overdraw = selectedLot && Number(line.weight) > selectedLot.weightAvailable + 0.001;
           // Dual rate: admin-only, and only on stock from a Commission arrival.
           const dualRate = isAdmin && selectedLot?.purchaseType === 'commission';
+          const uw = line.itemId ? unitWeightFor(line.itemId) : 0;
+          const auto = uw > 0 ? autoWeight(toNumber(line.quantity), uw) : null;
+          const weightOverridden = line.weightManual && auto !== null && auto !== toNumber(line.weight);
+          const perKg = toNumber(line.rate);
+          const equivalent = perKg > 0 && uw > 0
+            ? line.rateBasis === 'kg'
+              ? `≈ ${formatCurrency(rateInBasis(perKg, 'unit', uw), false)} / ${uw} kg`
+              : `≈ ${formatCurrency(perKg, false)} / kg`
+            : ' ';
           return (
             <Card key={idx}>
               <CardContent sx={{ pb: '12px !important' }}>
@@ -488,27 +607,58 @@ export default function SaleEntryPage() {
                       </TextField>
                     </Grid>
                     <Grid size={4}>
-                      <TextField fullWidth size="small" label="Qty" type="number" value={line.quantity} disabled={linesLocked} onChange={(e) => updateLine(idx, { quantity: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
+                      <TextField
+                        fullWidth size="small" label="Qty" type="number"
+                        value={line.quantity}
+                        disabled={linesLocked}
+                        onChange={(e) => onQtyChange(idx, e.target.value)}
+                        inputProps={{ inputMode: 'decimal', min: 0, step: 'any' }}
+                        helperText={uw > 0 ? `× ${uw} kg` : ' '}
+                      />
                     </Grid>
                     <Grid size={4}>
                       <TextField
                         fullWidth size="small" label="Weight (kg)" type="number"
                         value={line.weight}
                         disabled={linesLocked}
-                        onChange={(e) => updateLine(idx, { weight: e.target.value })}
+                        onChange={(e) => onWeightChange(idx, e.target.value)}
                         error={overdraw}
-                        helperText={overdraw ? 'Exceeds stock' : ' '}
-                        inputProps={{ inputMode: 'decimal' }}
+                        helperText={
+                          overdraw
+                            ? 'Exceeds stock'
+                            : weightOverridden
+                              ? (
+                                <span>
+                                  Manual ·{' '}
+                                  <Link component="button" type="button" underline="hover" onClick={() => resetWeight(idx)} sx={{ fontSize: 'inherit', verticalAlign: 'baseline' }}>
+                                    use {auto} kg
+                                  </Link>
+                                </span>
+                              )
+                              : auto !== null && !line.weightManual
+                                ? 'Auto from Qty'
+                                : ' '
+                        }
+                        inputProps={{ inputMode: 'decimal', min: 0, step: 'any' }}
                       />
                     </Grid>
                     <Grid size={4}>
-                      <TextField fullWidth size="small" label={dualRate ? 'Customer rate ₹' : 'Rate ₹'} type="number" value={line.rate} disabled={linesLocked} onChange={(e) => updateLine(idx, { rate: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
+                      <TextField
+                        fullWidth size="small" type="number"
+                        label={`${dualRate ? 'Customer rate' : 'Rate'} ₹/${line.rateBasis === 'kg' || !(uw > 0) ? 'kg' : `${uw} kg`}`}
+                        value={line.rateInput}
+                        disabled={linesLocked}
+                        onChange={(e) => onRateInput(idx, e.target.value)}
+                        inputProps={{ inputMode: 'decimal', min: 0, step: 'any' }}
+                        helperText={equivalent}
+                        FormHelperTextProps={{ sx: { whiteSpace: 'nowrap', mx: 0.5 } }}
+                      />
                     </Grid>
                     {dualRate && (
                       <Grid size={12}>
                         <TextField
                           fullWidth size="small" type="number"
-                          label="Supplier rate ₹ (confidential)"
+                          label="Supplier rate ₹/kg (confidential)"
                           value={line.supplierRate}
                           disabled={linesLocked}
                           onChange={(e) => updateLine(idx, { supplierRate: e.target.value })}
@@ -522,6 +672,26 @@ export default function SaleEntryPage() {
                         />
                       </Grid>
                     )}
+                    <Grid size={12}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                        <Typography variant="caption" color="text.secondary">Rate basis</Typography>
+                        <ToggleButtonGroup
+                          size="small" exclusive color="primary"
+                          value={line.rateBasis}
+                          disabled={linesLocked}
+                          onChange={(_, v: RateBasis | null) => { if (v) onBasisChange(idx, v); }}
+                          sx={{ '& .MuiToggleButton-root': { py: 0.25, px: 1.25, textTransform: 'none', fontSize: 13, lineHeight: 1.6 } }}
+                        >
+                          <ToggleButton value="kg">Per kg</ToggleButton>
+                          <ToggleButton value="unit">Per {uw > 0 ? uw : 40} kg</ToggleButton>
+                        </ToggleButtonGroup>
+                        {perKg > 0 && uw > 0 && (
+                          <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
+                            {formatCurrency(perKg, false)}/kg · {formatCurrency(rateInBasis(perKg, 'unit', uw), false)}/{uw} kg
+                          </Typography>
+                        )}
+                      </Box>
+                    </Grid>
                     <Grid size={6}>
                       <TextField fullWidth size="small" label="Commission %" type="number" value={line.commissionPct} disabled={linesLocked} onChange={(e) => updateLine(idx, { commissionPct: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
                     </Grid>

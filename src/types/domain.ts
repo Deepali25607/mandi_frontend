@@ -11,6 +11,8 @@ export interface Item {
   unit: string;
   defaultCommissionPct: number;
   defaultMarketFeePct: number;
+  /** Standard weight (kg) of one unit/bag — drives Qty→Weight and per-bag rate entry in Sale Entry. */
+  standardUnitWeightKg: number;
   isActive: boolean;
 }
 
@@ -79,6 +81,8 @@ export interface StockLot {
   weightAvailable: number;
   status: LotStatus;
   date: string;
+  /** Settlement bill that already charged this lot's freight (null = not yet settled). */
+  freightBillId?: string | null;
 }
 
 export interface StockSummaryRow {
@@ -141,6 +145,8 @@ export interface SaleLine {
   commissionAmount: number;
   marketFeeAmount: number;
   netAmount: number;
+  /** Settlement bill this line was paid on (null = unsettled). */
+  supplierBillId?: string | null;
 }
 
 export interface Sale {

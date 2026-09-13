@@ -41,6 +41,9 @@ import {
 } from '@/api/operationsApi';
 import { useAppSelector } from '@/store/hooks';
 import SupplierFormDialog from '@/components/masters/SupplierFormDialog';
+import AdvancePaymentDialog, { type AdvanceLotOption } from '@/components/common/AdvancePaymentDialog';
+import { useGetStockLotsQuery } from '@/api/operationsApi';
+import PaymentsRoundedIcon from '@mui/icons-material/PaymentsRounded';
 import { formatCurrency } from '@/utils/format';
 import type { Arrival, PurchaseType } from '@/types/domain';
 
@@ -76,6 +79,9 @@ export default function ArrivalEntryPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [detail, setDetail] = useState<Arrival | null>(null);
   const [newSupplierOpen, setNewSupplierOpen] = useState(false);
+  // Advance payment against one of an arrival's lots (offered right after saving).
+  const [advanceFor, setAdvanceFor] = useState<Arrival | null>(null);
+  const { data: allLots } = useGetStockLotsQuery({}, { skip: !advanceFor });
   // Edit mode: when set, the form updates an existing arrival instead of creating.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNumber, setEditNumber] = useState('');
@@ -212,6 +218,8 @@ export default function ArrivalEntryPage() {
         setVehicleNumber('');
         setTransportCharges('');
         setLines([emptyLine()]);
+        // Accountant can pay an advance against a lot straight away.
+        setAdvanceFor(arrival);
       }
     } catch (e) {
       const msg = (e as { data?: { message?: string | string[] } })?.data?.message;
@@ -419,6 +427,9 @@ export default function ArrivalEntryPage() {
                   {detail.arrivalNumber} · {detail.date} · {detail.purchaseType === 'commission' ? 'Commission' : 'Bilty'}{detail.vehicleNumber ? ` · ${detail.vehicleNumber}` : ''}
                 </Typography>
               </Box>
+              <Button size="small" variant="outlined" startIcon={<PaymentsRoundedIcon />} onClick={() => setAdvanceFor(detail)}>
+                Advance
+              </Button>
               <Button size="small" variant="outlined" startIcon={<EditRoundedIcon />} onClick={() => enterEdit(detail.id)}>
                 Edit
               </Button>
@@ -485,6 +496,23 @@ export default function ArrivalEntryPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <AdvancePaymentDialog
+        open={Boolean(advanceFor)}
+        supplierId={advanceFor?.supplierId ?? ''}
+        supplierName={advanceFor ? supplierName(advanceFor.supplierId) : ''}
+        arrivalNumber={advanceFor?.arrivalNumber}
+        lots={(advanceFor?.lines ?? []).map<AdvanceLotOption>((l) => ({
+          // Lots are created from the arrival lines; match by lot number.
+          lotId: (allLots ?? []).find((x) => x.lotNumber === l.lotNumber)?.id ?? '',
+          lotNumber: l.lotNumber,
+          itemName: itemName(l.itemId),
+          weight: l.weight,
+          amount: l.amount,
+        })).filter((l) => l.lotId)}
+        onClose={() => setAdvanceFor(null)}
+        onSaved={(no, amt) => setToast(`Advance ${no} of ${formatCurrency(amt, false)} recorded`)}
+      />
 
       <SupplierFormDialog
         open={newSupplierOpen}

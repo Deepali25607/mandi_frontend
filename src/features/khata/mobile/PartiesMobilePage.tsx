@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Box, ButtonBase, Dialog, DialogContent, DialogTitle, Divider, LinearProgress, List, ListItemButton, ListItemText, Menu, MenuItem, Snackbar, Typography } from '@mui/material';
+import { Box, ButtonBase, Dialog, DialogTitle, Divider, LinearProgress, List, ListItemButton, ListItemText, Menu, MenuItem, Snackbar, Typography } from '@mui/material';
 import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
-import MonetizationOnRoundedIcon from '@mui/icons-material/MonetizationOnRounded';
 import PersonAddAlt1RoundedIcon from '@mui/icons-material/PersonAddAlt1Rounded';
 import { useAppSelector } from '@/store/hooks';
 import { KHATA } from '../khataTheme';
@@ -53,7 +52,6 @@ export default function PartiesMobilePage() {
   const [addOpen, setAddOpen] = useState(false);
   const [remind, setRemind] = useState<PartySummary | null>(null);
   const [orgMenuEl, setOrgMenuEl] = useState<null | HTMLElement>(null);
-  const [coinsOpen, setCoinsOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -69,8 +67,7 @@ export default function PartiesMobilePage() {
   });
 
   const onBottomNav = (t: KhataTab) => {
-    if (t === 'loans') setToast('Loans are not available for your account yet.');
-    else if (t === 'more') setMoreOpen(true);
+    if (t === 'more') setMoreOpen(true);
   };
 
   const header = (
@@ -80,14 +77,6 @@ export default function PartiesMobilePage() {
         <ButtonBase onClick={(e) => setOrgMenuEl(e.currentTarget)} sx={{ gap: 0.5, flex: 1, justifyContent: 'flex-start', minWidth: 0 }}>
           <Typography noWrap sx={{ fontSize: 20, fontWeight: 700 }}>{businessName}</Typography>
           <KeyboardArrowDownRoundedIcon sx={{ fontSize: 28 }} />
-        </ButtonBase>
-        <ButtonBase
-          onClick={() => setCoinsOpen(true)}
-          sx={{ border: `2px solid ${KHATA.tabAccent}`, borderRadius: 999, px: 1.25, py: 0.5, gap: 0.75, fontSize: 16, fontWeight: 600, position: 'relative' }}
-        >
-          <MonetizationOnRoundedIcon sx={{ color: KHATA.tabAccent, fontSize: 24 }} />
-          0
-          <Box sx={{ position: 'absolute', top: -6, right: -2, width: 16, height: 16, borderRadius: '50%', bgcolor: '#e0466a', border: '2px solid #fff' }} />
         </ButtonBase>
       </Box>
       <Box sx={{ display: 'flex', px: 2 }}>
@@ -154,13 +143,6 @@ export default function PartiesMobilePage() {
         <Divider />
         <MenuItem onClick={() => { setOrgMenuEl(null); navigate('/organization'); }}>Business settings</MenuItem>
       </Menu>
-
-      <Dialog open={coinsOpen} onClose={() => setCoinsOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>Reward coins</DialogTitle>
-        <DialogContent>
-          <Typography>You have 0 coins. Earn coins by recording receipts daily and sending reminders on time.</Typography>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={moreOpen} onClose={() => setMoreOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 700 }}>More</DialogTitle>

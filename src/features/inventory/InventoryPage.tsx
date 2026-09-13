@@ -33,6 +33,8 @@ import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import FilterAltRoundedIcon from '@mui/icons-material/FilterAltRounded';
 import { useGetStockLotsQuery, useGetStockSummaryQuery } from '@/api/operationsApi';
 import { useGetItemsQuery, useGetSuppliersQuery } from '@/api/mastersApi';
+import LotDetailDialog from '@/components/common/LotDetailDialog';
+import type { StockLot } from '@/types/domain';
 import { formatCurrency, formatNumber } from '@/utils/format';
 
 // Stable colours per produce category, with a rotating fallback palette.
@@ -62,6 +64,8 @@ export default function InventoryPage() {
   const tab = filter === 'lots' ? 1 : 0;
   const [search, setSearch] = useState('');
   const [showAllLots, setShowAllLots] = useState(false);
+  // Tap a lot card for its full history (arrival, drawdown, related sales, bills).
+  const [lotDetail, setLotDetail] = useState<StockLot | null>(null);
   const { data: summary, isLoading: loadingSummary } = useGetStockSummaryQuery();
   const { data: lots, isLoading: loadingLots } = useGetStockLotsQuery({ availableOnly: !showAllLots });
   const { data: items } = useGetItemsQuery();
@@ -90,7 +94,8 @@ export default function InventoryPage() {
     if (filter === 'weight') r = [...r].sort((a, b) => b.weightAvailable - a.weightAvailable);
     return r; // 'value' (and 'items') keep the value-sorted order from `rows`
   }, [rows, q, filter]);
-  const filteredLots = (lots ?? []).filter((l) => !q || itemName(l.itemId).toLowerCase().includes(q) || l.lotNumber.toLowerCase().includes(q));
+  const filteredLots = (lots ?? []).filter((l) =>
+    !q || itemName(l.itemId).toLowerCase().includes(q) || l.lotNumber.toLowerCase().includes(q) || supplierName(l.supplierId).toLowerCase().includes(q));
 
   // Footer totals reflect what's currently shown.
   const viewWeight = filteredItems.reduce((s, r) => s + r.weightAvailable, 0);
@@ -149,7 +154,7 @@ export default function InventoryPage() {
           {/* Toolbar */}
           <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
             <TextField
-              size="small" placeholder="Search item or lot…" value={search} onChange={(e) => setSearch(e.target.value)}
+              size="small" placeholder="Search item, lot no. or supplier…" value={search} onChange={(e) => setSearch(e.target.value)}
               InputProps={{ startAdornment: <SearchRoundedIcon fontSize="small" sx={{ mr: 1, color: 'text.disabled' }} /> }}
               sx={{ flexGrow: 1, maxWidth: 360 }}
             />
@@ -228,7 +233,11 @@ export default function InventoryPage() {
                   const age = daysAgo(lot.date);
                   const barColor = st.color === 'default' ? theme.palette.grey[400] : theme.palette[st.color].main;
                   return (
-                    <Box key={lot.id} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1.5 }}>
+                    <Box
+                      key={lot.id}
+                      onClick={() => setLotDetail(lot)}
+                      sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1.5, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+                    >
                       <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.75 }}>
                         <Typography sx={{ fontWeight: 800 }} noWrap>{lot.lotNumber}</Typography>
                         <Chip size="small" label={st.label} color={st.color} sx={{ height: 20, fontWeight: 700 }} />
@@ -259,6 +268,7 @@ export default function InventoryPage() {
           )}
         </CardContent>
       </Card>
+      <LotDetailDialog lot={lotDetail} onClose={() => setLotDetail(null)} />
     </Stack>
   );
 }
