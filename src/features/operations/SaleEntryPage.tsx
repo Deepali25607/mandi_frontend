@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -368,6 +369,17 @@ export default function SaleEntryPage() {
       setError('Could not load this sale for editing.');
     }
   };
+
+  // Deep link from Billing (admin "Edit" on an invoice): /sales?edit=<saleId>.
+  // Wait for items so the per-bag rate display uses the right unit weight.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const editParam = searchParams.get('edit');
+  useEffect(() => {
+    if (!editParam || !items) return;
+    void enterEdit(editParam);
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editParam, items]);
 
   const doDelete = async () => {
     if (!confirmDelete) return;

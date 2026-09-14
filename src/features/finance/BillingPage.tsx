@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -6,6 +7,8 @@ import {
   CardActionArea,
   Chip,
   Dialog,
+  IconButton,
+  Tooltip,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -21,6 +24,8 @@ import {
 import PrintRoundedIcon from '@mui/icons-material/PrintRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import { useAppSelector } from '@/store/hooks';
 import { useGetSalesQuery } from '@/api/operationsApi';
 import { useGetOrganizationQuery } from '@/api/adminApi';
 import { useLookups } from '@/utils/useLookups';
@@ -38,6 +43,10 @@ export default function BillingPage() {
   const [active, setActive] = useState<Sale | null>(null);
   const [printAnchor, setPrintAnchor] = useState<null | HTMLElement>(null);
   const [thermalDoc, setThermalDoc] = useState<InvoiceData | null>(null);
+  const navigate = useNavigate();
+  // Admin may correct a bill: opens the sale in Sale Entry's edit mode.
+  const isAdmin = useAppSelector((s) => s.auth.user?.role) === 'org_admin';
+  const editSale = (sale: Sale) => navigate(`/sales?edit=${sale.id}`);
 
   const customer = active ? customers.find((c) => c.id === active.customerId) : undefined;
 
@@ -94,8 +103,8 @@ export default function BillingPage() {
       ) : (
         <Stack spacing={1}>
           {sales.map((s) => (
-            <Card key={s.id}>
-              <CardActionArea onClick={() => setActive(s)} sx={{ p: 1.5 }}>
+            <Card key={s.id} sx={{ display: 'flex', alignItems: 'stretch' }}>
+              <CardActionArea onClick={() => setActive(s)} sx={{ p: 1.5, flexGrow: 1 }}>
                 <Stack direction="row" alignItems="center" spacing={1}>
                   <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                     <Typography sx={{ fontWeight: 700 }} noWrap>{customerName(s.customerId)}</Typography>
@@ -105,6 +114,13 @@ export default function BillingPage() {
                   <Typography sx={{ fontWeight: 800 }}>{formatCurrency(s.grossAmount + (s.otherCharges ?? 0))}</Typography>
                 </Stack>
               </CardActionArea>
+              {isAdmin && (
+                <Tooltip title={`Edit ${s.saleNumber}`}>
+                  <IconButton size="small" onClick={() => editSale(s)} aria-label={`Edit ${s.saleNumber}`} sx={{ alignSelf: 'center', mx: 0.5 }}>
+                    <EditRoundedIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
             </Card>
           ))}
         </Stack>
@@ -148,7 +164,12 @@ export default function BillingPage() {
                 <Row label="Net Amount" value={active.grossAmount + (active.otherCharges ?? 0)} bold />
               </Stack>
             </DialogContent>
-            <DialogActions sx={{ p: 2, gap: 1 }}>
+            <DialogActions sx={{ p: 2, gap: 1, flexWrap: 'wrap' }}>
+              {isAdmin && (
+                <Button startIcon={<EditRoundedIcon />} onClick={() => editSale(active)} sx={{ mr: 'auto' }}>
+                  Edit
+                </Button>
+              )}
               <Button
                 startIcon={<PrintRoundedIcon />}
                 endIcon={<ExpandMoreRoundedIcon />}
