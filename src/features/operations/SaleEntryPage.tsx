@@ -125,12 +125,15 @@ const PAYMENT_MODES: { value: PaymentMode; label: string }[] = [
 ];
 
 /** Line maths live in utils/saleCalc so the preview matches the API to the paisa. */
+/** A line without a weight is incomplete — Weight is mandatory — so it previews as ₹0. */
+const hasWeight = (l: { weight: string }) => toNumber(l.weight) > 0;
+
 function compute(l: LineDraft) {
   return computeSaleLine({
     quantity: toNumber(l.quantity),
     weight: toNumber(l.weight),
-    rate: toNumber(l.rate),
-    supplierRate: toNumber(l.supplierRate),
+    rate: hasWeight(l) ? toNumber(l.rate) : 0,
+    supplierRate: hasWeight(l) ? toNumber(l.supplierRate) : 0,
     commissionPct: toNumber(l.commissionPct),
     marketFeePct: toNumber(l.marketFeePct),
   });
@@ -220,7 +223,7 @@ export default function SaleEntryPage() {
     const uw = unitWeightOf(item);
     setLines((prev) => prev.map((l, i) => {
       if (i !== idx) return l;
-      const auto = l.weightManual ? null : autoWeight(toNumber(l.quantity), uw);
+      const auto = l.weightManual && l.weight !== '' ? null : autoWeight(toNumber(l.quantity), uw);
       const rate = todayRate !== undefined ? todayRate : toNumber(l.rate);
       return {
         ...l,
@@ -230,33 +233,31 @@ export default function SaleEntryPage() {
         marketFeePct: l.marketFeePct === '' ? String(DEFAULT_MARKET_FEE_PCT) : l.marketFeePct,
         rate: toInput(rate),
         rateInput: toInput(rateInBasis(rate, l.rateBasis, uw)),
-        ...(auto !== null ? { weight: String(auto) } : {}),
+        ...(auto !== null ? { weight: String(auto), weightManual: false } : {}),
       };
     }));
   };
 
-  /** Qty drives Weight only while Weight hasn't been overridden by hand. */
+  /** Qty drives Weight only while Weight hasn't been typed by hand (a blank weight is fair game). */
   const onQtyChange = (idx: number, value: string) => {
     const quantity = nonNegative(value);
     setLines((prev) => prev.map((l, i) => {
       if (i !== idx) return l;
-      if (l.weightManual || !l.itemId) return { ...l, quantity };
+      if ((l.weightManual && l.weight !== '') || !l.itemId) return { ...l, quantity };
       const auto = autoWeight(toNumber(quantity), unitWeightFor(l.itemId));
-      return { ...l, quantity, weight: auto !== null ? String(auto) : '' };
+      // Auto-filled → Qty owns the weight again until the user types one.
+      return { ...l, quantity, weight: auto !== null ? String(auto) : '', weightManual: false };
     }));
   };
 
-  /** Typing a weight marks it manual; clearing it hands control back to Qty. */
+  /**
+   * Typing a weight marks it manual. Clearing it leaves the box EMPTY (so the
+   * user can type a fresh value) — it is not snapped back to Qty × unit weight.
+   * "use N kg" or a later Qty change restores the auto value.
+   */
   const onWeightChange = (idx: number, value: string) => {
     const weight = nonNegative(value);
-    setLines((prev) => prev.map((l, i) => {
-      if (i !== idx) return l;
-      if (weight === '') {
-        const auto = l.itemId ? autoWeight(toNumber(l.quantity), unitWeightFor(l.itemId)) : null;
-        return { ...l, weight: auto !== null ? String(auto) : '', weightManual: false };
-      }
-      return { ...l, weight, weightManual: true };
-    }));
+    setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, weight, weightManual: true } : l)));
   };
 
   const resetWeight = (idx: number) =>
@@ -290,10 +291,10 @@ export default function SaleEntryPage() {
   const removeLine = (idx: number) =>
     setLines((prev) => (prev.length === 1 ? prev : prev.filter((_, i) => i !== idx)));
 
-  const validLines = lines.filter(
-    (l) => l.itemId && (Number(l.weight) > 0 || Number(l.quantity) > 0) && Number(l.rate) > 0,
-  );
-  const canSave = Boolean(customerId) && validLines.length > 0;
+  const validLines = lines.filter((l) => l.itemId && hasWeight(l) && Number(l.rate) > 0);
+  // Weight (kg) is mandatory: any item line without it blocks the save.
+  const missingWeight = lines.some((l) => l.itemId && !hasWeight(l));
+  const canSave = Boolean(customerId) && validLines.length > 0 && !missingWeight;
   const selectedPending = customerId ? pendingMap.get(customerId) ?? 0 : 0;
   const busy = isLoading || updating;
 
@@ -577,7 +578,9 @@ export default function SaleEntryPage() {
           const dualRate = isAdmin && selectedLot?.purchaseType === 'commission';
           const uw = line.itemId ? unitWeightFor(line.itemId) : 0;
           const auto = uw > 0 ? autoWeight(toNumber(line.quantity), uw) : null;
-          const weightOverridden = line.weightManual && auto !== null && auto !== toNumber(line.weight);
+          const weightBlank = line.weightManual && line.weight === '';
+          const weightMissing = Boolean(line.itemId) && !hasWeight(line);
+          const weightOverridden = line.weightManual && auto !== null && (weightBlank || auto !== toNumber(line.weight));
           const perKg = toNumber(line.rate);
           const equivalent = perKg > 0 && uw > 0
             ? line.rateBasis === 'kg'
@@ -630,26 +633,28 @@ export default function SaleEntryPage() {
                     </Grid>
                     <Grid size={4}>
                       <TextField
-                        fullWidth size="small" label="Weight (kg)" type="number"
+                        fullWidth size="small" label="Weight (kg)" type="number" required
                         value={line.weight}
                         disabled={linesLocked}
                         onChange={(e) => onWeightChange(idx, e.target.value)}
-                        error={overdraw}
+                        error={overdraw || weightMissing}
                         helperText={
                           overdraw
                             ? 'Exceeds stock'
                             : weightOverridden
                               ? (
                                 <span>
-                                  Manual ·{' '}
+                                  {weightMissing ? 'Weight is required' : 'Manual'} ·{' '}
                                   <Link component="button" type="button" underline="hover" onClick={() => resetWeight(idx)} sx={{ fontSize: 'inherit', verticalAlign: 'baseline' }}>
                                     use {auto} kg
                                   </Link>
                                 </span>
                               )
-                              : auto !== null && !line.weightManual
-                                ? 'Auto from Qty'
-                                : ' '
+                              : weightMissing
+                                ? 'Weight is required'
+                                : auto !== null && !line.weightManual
+                                  ? 'Auto from Qty'
+                                  : ' '
                         }
                         inputProps={{ inputMode: 'decimal', min: 0, step: 'any' }}
                       />
@@ -750,6 +755,11 @@ export default function SaleEntryPage() {
               ? updating ? 'Updating…' : 'Update Sale'
               : isLoading ? 'Saving…' : 'Save Sale'}
           </Button>
+          {missingWeight && (
+            <Typography variant="caption" color="error" sx={{ display: 'block', mt: 1, textAlign: 'center' }}>
+              Enter the weight (kg) for every item to save.
+            </Typography>
+          )}
         </CardContent>
       </Card>
 
