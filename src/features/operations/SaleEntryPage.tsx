@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -221,6 +221,9 @@ export default function SaleEntryPage() {
     const itemLots = lotsByItem.get(itemId) ?? [];
     const todayRate = latestPrices?.find((p) => p.itemId === itemId)?.price;
     const uw = unitWeightOf(item);
+    // The auto-selected first lot drives the commission rule: Bilty → 0 / locked.
+    const firstLot = itemLots[0];
+    const bilty = firstLot ? (firstLot.purchaseType ?? 'bilty') === 'bilty' : false;
     setLines((prev) => prev.map((l, i) => {
       if (i !== idx) return l;
       const auto = l.weightManual && l.weight !== '' ? null : autoWeight(toNumber(l.quantity), uw);
@@ -228,15 +231,34 @@ export default function SaleEntryPage() {
       return {
         ...l,
         itemId,
-        lotId: itemLots[0]?.id ?? '',
-        commissionPct: l.commissionPct === '' ? String(DEFAULT_COMMISSION_PCT) : l.commissionPct,
-        marketFeePct: l.marketFeePct === '' ? String(DEFAULT_MARKET_FEE_PCT) : l.marketFeePct,
+        lotId: firstLot?.id ?? '',
+        commissionPct: bilty ? '0' : l.commissionPct === '' ? String(DEFAULT_COMMISSION_PCT) : l.commissionPct,
+        marketFeePct: bilty ? '0' : l.marketFeePct === '' ? String(DEFAULT_MARKET_FEE_PCT) : l.marketFeePct,
         rate: toInput(rate),
         rateInput: toInput(rateInBasis(rate, l.rateBasis, uw)),
         ...(auto !== null ? { weight: String(auto), weightManual: false } : {}),
       };
     }));
   };
+
+  /**
+   * Picking a lot applies the Bilty rule: a Bilty lot forces commission/market
+   * fee to 0 (and clears any supplier rate); a Commission lot or "no lot"
+   * restores the editable 7% / 0% defaults.
+   */
+  const onSelectLot = (idx: number, lotId: string) =>
+    setLines((prev) => prev.map((l, i) => {
+      if (i !== idx) return l;
+      if (lotId && isBiltyLot(lotId)) {
+        return { ...l, lotId, commissionPct: '0', marketFeePct: '0', supplierRate: '' };
+      }
+      return {
+        ...l,
+        lotId,
+        commissionPct: l.commissionPct === '' || l.commissionPct === '0' ? String(DEFAULT_COMMISSION_PCT) : l.commissionPct,
+        marketFeePct: l.marketFeePct === '' ? String(DEFAULT_MARKET_FEE_PCT) : l.marketFeePct,
+      };
+    }));
 
   /** Qty drives Weight only while Weight hasn't been typed by hand (a blank weight is fair game). */
   const onQtyChange = (idx: number, value: string) => {
@@ -302,23 +324,36 @@ export default function SaleEntryPage() {
   const lotIsCommission = (lotId: string) =>
     (lots ?? []).find((x) => x.id === lotId)?.purchaseType === 'commission';
 
+  // Bilty (outright purchase): the mandi owns the goods, so it earns the margin,
+  // NOT a supplier commission. A line drawn from a Bilty lot has commission and
+  // market fee forced to 0 and locked. A missing purchaseType counts as Bilty.
+  const isBiltyLot = (lotId: string) => {
+    const lot = (lots ?? []).find((x) => x.id === lotId);
+    return Boolean(lot) && (lot!.purchaseType ?? 'bilty') === 'bilty';
+  };
+
   const buildLines = () =>
-    validLines.map((l) => ({
-      itemId: l.itemId,
-      lotId: l.lotId || undefined,
-      quantity: Number(l.quantity) || 0,
-      weight: Number(l.weight) || 0,
-      rate: Number(l.rate),
-      // Supplier rate rides along only for admins on Commission lots — a stale
-      // value from a switched lot must never reach the API (it would be rejected).
-      ...(isAdmin && Number(l.supplierRate) > 0 && lotIsCommission(l.lotId)
-        ? { supplierRate: Number(l.supplierRate) }
-        : {}),
-      // A blank field means 0 (the item default only pre-fills the input;
-      // clearing it = no charge), so the saved sale matches the on-screen figures.
-      commissionPct: l.commissionPct === '' ? 0 : Number(l.commissionPct),
-      marketFeePct: l.marketFeePct === '' ? 0 : Number(l.marketFeePct),
-    }));
+    validLines.map((l) => {
+      // Bilty (outright) lots never carry commission / market fee — forced to 0
+      // here too, so this holds whatever the field state was.
+      const bilty = l.lotId ? isBiltyLot(l.lotId) : false;
+      return {
+        itemId: l.itemId,
+        lotId: l.lotId || undefined,
+        quantity: Number(l.quantity) || 0,
+        weight: Number(l.weight) || 0,
+        rate: Number(l.rate),
+        // Supplier rate rides along only for admins on Commission lots — a stale
+        // value from a switched lot must never reach the API (it would be rejected).
+        ...(isAdmin && Number(l.supplierRate) > 0 && lotIsCommission(l.lotId)
+          ? { supplierRate: Number(l.supplierRate) }
+          : {}),
+        // A blank field means 0 (the item default only pre-fills the input;
+        // clearing it = no charge), so the saved sale matches the on-screen figures.
+        commissionPct: bilty ? 0 : l.commissionPct === '' ? 0 : Number(l.commissionPct),
+        marketFeePct: bilty ? 0 : l.marketFeePct === '' ? 0 : Number(l.marketFeePct),
+      };
+    });
 
   const resetForm = () => {
     setEditingId(null);
@@ -381,6 +416,27 @@ export default function SaleEntryPage() {
     setSearchParams({}, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editParam, items]);
+
+  // Once lot data is known (edit mode loads ALL lots, incl. closed ones), force
+  // every line drawn from a Bilty lot to 0 commission / 0 market fee, so an
+  // existing Bilty sale with a stored commission shows and re-saves as 0.
+  useEffect(() => {
+    if (!lots) return;
+    const biltyIds = new Set(
+      lots.filter((lot) => (lot.purchaseType ?? 'bilty') === 'bilty').map((lot) => lot.id),
+    );
+    setLines((prev) => {
+      let changed = false;
+      const next = prev.map((l) => {
+        if (l.lotId && biltyIds.has(l.lotId) && (l.commissionPct !== '0' || l.marketFeePct !== '0')) {
+          changed = true;
+          return { ...l, commissionPct: '0', marketFeePct: '0' };
+        }
+        return l;
+      });
+      return changed ? next : prev;
+    });
+  }, [lots]);
 
   const doDelete = async () => {
     if (!confirmDelete) return;
@@ -576,6 +632,8 @@ export default function SaleEntryPage() {
           const overdraw = selectedLot && Number(line.weight) > selectedLot.weightAvailable + 0.001;
           // Dual rate: admin-only, and only on stock from a Commission arrival.
           const dualRate = isAdmin && selectedLot?.purchaseType === 'commission';
+          // Bilty (outright) lot → commission / market fee are 0 and locked.
+          const biltyLot = Boolean(selectedLot) && (selectedLot!.purchaseType ?? 'bilty') === 'bilty';
           const uw = line.itemId ? unitWeightFor(line.itemId) : 0;
           const auto = uw > 0 ? autoWeight(toNumber(line.quantity), uw) : null;
           const weightBlank = line.weightManual && line.weight === '';
@@ -611,7 +669,7 @@ export default function SaleEntryPage() {
                       <TextField
                         select fullWidth size="small" label="Lot (stock)"
                         value={line.lotId}
-                        onChange={(e) => updateLine(idx, { lotId: e.target.value })}
+                        onChange={(e) => onSelectLot(idx, e.target.value)}
                         disabled={!line.itemId || linesLocked}
                         helperText={selectedLot ? `${selectedLot.weightAvailable} kg available @ ${formatCurrency(selectedLot.rate, false)}` : 'No lot linked'}
                       >
@@ -710,10 +768,10 @@ export default function SaleEntryPage() {
                       </Box>
                     </Grid>
                     <Grid size={6}>
-                      <TextField fullWidth size="small" label="Commission %" type="number" value={line.commissionPct} disabled={linesLocked} onChange={(e) => updateLine(idx, { commissionPct: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
+                      <TextField fullWidth size="small" label="Commission %" type="number" value={line.commissionPct} disabled={linesLocked || biltyLot} onChange={(e) => updateLine(idx, { commissionPct: e.target.value })} inputProps={{ inputMode: 'decimal' }} helperText={biltyLot ? 'Bilty — no commission' : ' '} />
                     </Grid>
                     <Grid size={6}>
-                      <TextField fullWidth size="small" label="Market fee %" type="number" value={line.marketFeePct} disabled={linesLocked} onChange={(e) => updateLine(idx, { marketFeePct: e.target.value })} inputProps={{ inputMode: 'decimal' }} />
+                      <TextField fullWidth size="small" label="Market fee %" type="number" value={line.marketFeePct} disabled={linesLocked || biltyLot} onChange={(e) => updateLine(idx, { marketFeePct: e.target.value })} inputProps={{ inputMode: 'decimal' }} helperText={biltyLot ? 'Bilty — no market fee' : ' '} />
                     </Grid>
                   </Grid>
 
@@ -779,6 +837,14 @@ export default function SaleEntryPage() {
                 <Typography variant="subtitle1" sx={{ fontWeight: 800, flexGrow: 1 }}>Recent sales</Typography>
                 <Chip size="small" label={(sales ?? []).length} />
               </Stack>
+              <Link
+                component={RouterLink}
+                to="/all-sales"
+                underline="hover"
+                sx={{ display: 'block', mb: 1, fontWeight: 700, fontSize: 13 }}
+              >
+                View all sales →
+              </Link>
               {recentSales.length === 0 ? (
                 <Typography color="text.secondary" variant="body2" sx={{ py: 3, textAlign: 'center' }}>
                   No sales yet. Saved sales show here.

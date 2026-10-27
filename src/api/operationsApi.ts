@@ -50,8 +50,10 @@ export const operationsApi = apiSlice.injectEndpoints({
     }),
 
     // ---- Sales ----
-    getSales: build.query<Sale[], void>({
-      query: () => '/sales',
+    // No arg → latest 100 (Recent Sales, Billing). `{ all: true }` pulls every
+    // historical bill for the All Sales screen (separate RTK cache entry).
+    getSales: build.query<Sale[], { all?: boolean } | void>({
+      query: (args) => (args && args.all ? '/sales?all=true' : '/sales'),
       providesTags: ['Sale'],
     }),
     getSale: build.query<Sale, string>({

@@ -16,6 +16,7 @@ import CustomersPage from '@/features/masters/CustomersPage';
 import InventoryPage from '@/features/inventory/InventoryPage';
 import ArrivalEntryPage from '@/features/operations/ArrivalEntryPage';
 import SaleEntryPage from '@/features/operations/SaleEntryPage';
+import AllSalesPage from '@/features/operations/AllSalesPage';
 import CratesPage from '@/features/operations/CratesPage';
 import ChallansPage from '@/features/operations/ChallansPage';
 import CollectionsPage from '@/features/finance/CollectionsPage';
@@ -51,6 +52,7 @@ import { NAV_ITEMS } from '@/components/layout/navConfig';
 const IMPLEMENTED = new Set([
   '/dashboard',
   '/sales',
+  '/all-sales',
   '/arrivals',
   '/inventory',
   '/suppliers',
@@ -125,6 +127,7 @@ export default function App() {
         <Route path="/dashboard" element={<RoleGuard scope="org"><DashboardPage /></RoleGuard>} />
         <Route path="/backup" element={<BackupPage />} />
         <Route path="/sales" element={<SaleEntryPage />} />
+        <Route path="/all-sales" element={<AllSalesPage />} />
         <Route path="/arrivals" element={<ArrivalEntryPage />} />
         <Route path="/inventory" element={<InventoryPage />} />
         <Route path="/suppliers" element={<SuppliersPage />} />

@@ -61,10 +61,35 @@ export function SupplierRateMarginReport() {
           !rateMode ||
           (rateMode === 'dual' ? line.supplierRate != null : line.supplierRate == null))
         .map(({ line, lot }) => {
-          const suppValue = line.supplierGrossAmount ?? line.grossAmount;
-          const margin = line.grossAmount - suppValue;
+          const type = lot!.purchaseType ?? 'bilty';
+          const billed = line.grossAmount;                   // sales value (customer rate × weight)
+          const base = line.weight > 0 ? line.weight : line.quantity;
+          let suppRate: number;
+          let suppValue: number;
+          let net: number;
+          if (type === 'bilty') {
+            // Bilty (outright): the supplier rate/value come from the ORIGINAL
+            // arrival purchase rate (lot.rate) — NEVER the sale rate. Margin is the
+            // real buy→sell spread, and the supplier is owed the purchase cost.
+            const purchaseRate = lot!.rate ?? 0;
+            suppRate = purchaseRate;
+            suppValue = round2(base * purchaseRate);
+            net = suppValue;
+          } else {
+            // Commission: supplier entitlement comes from the sale (dual rate when
+            // the owner set one), settled at the stored net (sales − commission − fee).
+            suppValue = line.supplierGrossAmount ?? line.grossAmount;
+            suppRate = line.supplierRate ?? line.rate;
+            net = line.netAmount;
+          }
+          const margin = round2(billed - suppValue);
+          const commission = line.commissionAmount;
+          const fee = line.marketFeeAmount;
           return {
             lotId: lot!.id,
+            // A "dual-rate" line is one where the owner set an explicit supplier
+            // rate (Commission lots only) — not a Bilty buy→sell spread.
+            isDual: line.supplierRate != null,
             row: {
               date: s.date, no: s.saleNumber,
               supplier: supplierName(lot!.supplierId),
@@ -73,27 +98,28 @@ export function SupplierRateMarginReport() {
               type: purchaseTypeLabel(lot!.purchaseType),
               weight: line.weight,
               custRate: line.rate,
-              suppRate: line.supplierRate ?? line.rate,
-              billed: line.grossAmount,
+              suppRate,
+              billed,
               suppValue,
               margin,
-              commission: line.commissionAmount,
-              fee: line.marketFeeAmount,
-              earning: margin + line.commissionAmount + line.marketFeeAmount,
-              net: line.netAmount,
+              commission,
+              fee,
+              earning: round2(margin + commission + fee),
+              net,
             } as ReportRow,
           };
         }),
     ), [sales, lotById, from, to, supplierId, itemId, purchaseType, rateMode, supplierName, itemName]);
   const lotOptions = useMemo(() => lotsFromIds(preRows.map((r) => r.lotId), lotById), [preRows, lotById]);
   const { lotId, setLotId, options: lotChoices } = useLotFilter(lotOptions);
-  const rows: ReportRow[] = useMemo(
-    () => preRows.filter((r) => !lotId || r.lotId === lotId).map((r) => r.row),
+  const filteredPre = useMemo(
+    () => preRows.filter((r) => !lotId || r.lotId === lotId),
     [preRows, lotId],
   );
+  const rows: ReportRow[] = useMemo(() => filteredPre.map((r) => r.row), [filteredPre]);
 
   const profit = rows.reduce((s, r) => s + Number(r.earning), 0);
-  const dualCount = rows.filter((r) => Number(r.margin) !== 0).length;
+  const dualCount = filteredPre.filter((r) => r.isDual).length;
 
   return (
     <ReportShell
@@ -112,4 +138,8 @@ export function SupplierRateMarginReport() {
       </>}
     />
   );
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
 }

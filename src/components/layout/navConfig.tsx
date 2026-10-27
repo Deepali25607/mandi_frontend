@@ -70,6 +70,7 @@ export const NAV_ITEMS: NavItem[] = [
   // Operations
   { label: 'Dashboard', path: '/dashboard', icon: SpaceDashboardRoundedIcon, roles: ALL, section: 'Operations', primary: true },
   { label: 'Sale Entry', path: '/sales', icon: PointOfSaleRoundedIcon, roles: ['accountant', 'sales_operator'], section: 'Operations', primary: true },
+  { label: 'All Sales', path: '/all-sales', icon: ReceiptLongRoundedIcon, roles: ['accountant', 'sales_operator'], section: 'Operations' },
   { label: 'Arrival Entry', path: '/arrivals', icon: LocalShippingRoundedIcon, roles: ['accountant', 'purchase_operator'], section: 'Operations', primary: true },
   { label: 'Collections', path: '/collections', icon: PaymentsRoundedIcon, roles: ['accountant', 'collection_executive'], section: 'Operations', primary: true },
   { label: 'Inventory', path: '/inventory', icon: Inventory2RoundedIcon, roles: ['inventory_manager', 'accountant'], section: 'Operations', primary: true },
